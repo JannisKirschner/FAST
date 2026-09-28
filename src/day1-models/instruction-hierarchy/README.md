@@ -25,7 +25,8 @@ gap is what the control agenda on Day 2 exists to close.
 ## Structure
 
 Three parts: locate an instruction's authority across channels, prefill a refusal into collapse,
-then scan retrieved content for injected instructions. Each function you write is checked in the
+then scan retrieved content for injected instructions. An optional fourth part, for anyone who
+finishes early, turns the scanner around and evades it. Each function you write is checked in the
 notebook.
 
 ## Prerequisites

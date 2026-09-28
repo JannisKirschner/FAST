@@ -122,7 +122,10 @@ shipped `house.json` (a fresh room).
 start a new room):
 
 ```sh
-curl -X POST "<service-url>/admin/reset" -H 'Content-Type: application/json' -d "{\"token\":\"$ADMIN_TOKEN\"}"
+curl -X POST "<service-url>/admin/reset" \
+-H 'Content-Type: application/json' \
+-H "X-Room-Key: $ROOM_KEY" \
+-d "{\"token\":\"$ADMIN_TOKEN\"}"
 ```
 
 **Throughput.** One worker drains the queue serially and scoring is the monitor × snippet cross-product,
