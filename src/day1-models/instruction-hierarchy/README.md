@@ -11,8 +11,11 @@ ranking two ways, and build the input-side half of a defence.
 ## What it surfaces
 
 The instruction hierarchy (system over user over retrieved content) is a learned preference, not
-a wall the architecture enforces. You measure each channel's authority and read the ratio between
-them, which is the mechanism behind indirect prompt injection.
+a wall the architecture enforces. You measure each channel's authority directly, and on the small
+model the lab runs that preference turns out weak and noisy: the ordering can invert between cases,
+a proximate user or document instruction rivalling the system prompt, and it sharpens on larger,
+more recent models. Either way a retrieved document keeps a real share of the authority, which is
+the mechanism behind indirect prompt injection.
 
 Prefill is the second break. Writing the first tokens of the assistant's own turn collapses its
 refusal, measured first and then watched in generation. Which deployment surfaces expose this
@@ -26,8 +29,8 @@ gap is what the control agenda on Day 2 exists to close.
 
 Three parts: locate an instruction's authority across channels, prefill a refusal into collapse,
 then scan retrieved content for injected instructions. An optional fourth part, for anyone who
-finishes early, turns the scanner around and evades it. Each function you write is checked in the
-notebook.
+finishes early, hardens that scanner to survive obfuscated evasions. Each function you write is
+checked in the notebook.
 
 ## Prerequisites
 

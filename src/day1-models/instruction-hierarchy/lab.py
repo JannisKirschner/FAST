@@ -134,12 +134,22 @@ print(f"{len(rendered)} characters  ->  token ids of shape {tuple(ids.shape)}  (
 results = lab.run_hierarchy(model, tokenizer, conflict_prompt, sequence_logprob)
 
 # %% [markdown]
-# Read the table before moving on, and look at how the three channels compare rather than at any
-# single margin. The system prompt should move the model the most; the real question is how much
-# more than the others. If the same instruction sitting in a retrieved document shifts the model a
-# meaningful fraction of what it shifts from the system prompt, then the hierarchy behaves like a
-# soft ranking the model can be talked around: text in a channel it's meant to distrust can still
-# change what it does.
+# Read the table across all three channels rather than fixating on any single margin, and don't
+# expect a clean system > user > document ranking here. The idealised story is that authority falls
+# off in that order; what a 0.5B model actually shows is a weak, noisy version of it, with small
+# gaps that can invert between cases: the same instruction sitting in the user turn or a retrieved
+# document rivalling, or beating, the system prompt.
+#
+# The hierarchy is a preference
+# learned in post-training, and a small, older instruction-tuned model carries only a faint version
+# of it; meanwhile *position* matters, and an instruction sitting next to the task (user, document)
+# has an edge over one parked far away up in the system prompt. At this scale position is often
+# enough to swamp the trained ranking. It sharpens with scale: a modern few-billion-parameter model
+# shows a clean system > user > document ordering, because its hierarchy is finally strong enough to
+# dominate position.
+#
+# The security reading survives either way, and the weak-model result only sharpens it: a retrieved
+# document carries a real fraction of the system prompt's authority.
 #
 # That gap, between "supposed to be ignored" and "still has some pull", is what makes *indirect
 # prompt injection* work. An attacker plants instructions in something the model will later read (a
