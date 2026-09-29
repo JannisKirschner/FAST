@@ -6,7 +6,12 @@ and where today's experiments hit their limits.
 
 ## Run of show
 
+- [`harm-classifier/`](harm-classifier/) · **Train a harm classifier, then break it** · Lab · 60–90 min
 - [`control-hackathon/`](control-hackathon/) · **Insecure-code control hackathon** · Hackathon
+
+The lab comes first. Participants train the cheapest monitor there is, a DistilBERT classifier over
+Aegis 2.0 prompts, and score it the way control scores a monitor: catch rate at a fixed
+false-flag budget. Then they red-team it with their own prompts and attacks. It sets up the trade-off the hackathon scores.
 
 One hackathon, one live board, played against real models. A stream of small Python tasks arrives;
 red writes a prompt that turns an untrusted model into a model organism writing insecure code, and
