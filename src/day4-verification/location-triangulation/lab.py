@@ -261,7 +261,7 @@ separation = lab.great_circle_km(lab.SITES["Singapore"], lab.SITES["Johor Bahru"
 print(f"Singapore to Johor Bahru: {separation:.0f} km, a round trip of {2 * separation / lab.FIBRE_KM_PER_MS:.2f} ms")
 print()
 for jitter in (1.5, 0.5, 0.1):
-    print(f"jitter of {jitter:>4} ms is worth {jitter / 2 * lab.FIBRE_KM_PER_MS:>3.0f} km of slop in every bound")
+    print(f"jitter of {jitter} ms is worth {jitter / 2 * lab.FIBRE_KM_PER_MS:>3.0f} km of slop in every bound")
 
 # %% [markdown]
 # Drawn to scale over the strait, against the borders the mechanism is supposed to resolve.

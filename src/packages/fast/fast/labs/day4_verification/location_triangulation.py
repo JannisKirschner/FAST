@@ -313,8 +313,11 @@ def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "J
         ax.annotate(" · ".join(cluster["names"]), (cluster["lon"], cluster["lat"]), (8, -12),
                     textcoords="offset points", fontsize=8, color="#b91c1c", fontweight="bold")
 
-    ax.set_title(f"Consistent with all {len(LANDMARKS)} landmarks. "
-                 f"Landmark servers in teal, candidate sites in red.")
+    ax.plot([], [], "o", color="#0f766e", markersize=6, label="landmark server")
+    ax.plot([], [], "*", color="#b91c1c", markersize=13, label="candidate site")
+    ax.fill_between([], [], color="#c026d3", alpha=0.3, label="consistent with every landmark")
+    ax.legend(loc="lower left", fontsize=9, framealpha=0.9)
+    ax.set_title(f"Everywhere consistent with all {len(LANDMARKS)} landmarks")
     figure.tight_layout()
     print(f"{int(mask.sum())} of {mask.size} grid cells survive every landmark's bound")
     return figure
