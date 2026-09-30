@@ -201,7 +201,7 @@ def _borders(name: str):
     return rings
 
 
-def _basemap(ax, rings, extent):
+def _basemap(ax, rings, extent, labels: bool = True):
     ax.set_facecolor("#d9e6f2")  # sea, so land reads as land without a legend
     for lons, lats in rings:
         ax.fill(lons, lats, facecolor="#f7f5f1", edgecolor="#7d8a97", linewidth=0.6, zorder=0)
@@ -209,8 +209,17 @@ def _basemap(ax, rings, extent):
     ax.set_ylim(extent[2], extent[3])
     # Equirectangular: stretch longitude by cos(latitude) so the shapes aren't squashed.
     ax.set_aspect(1 / np.cos(np.radians(np.mean(extent[2:]))))
-    ax.set_xlabel("longitude"), ax.set_ylabel("latitude")
+    if labels:
+        ax.set_xlabel("longitude"), ax.set_ylabel("latitude")
+    else:
+        ax.set_xticks([]), ax.set_yticks([])
     ax.grid(color="#ffffff", alpha=0.6, linewidth=0.5, zorder=0)
+
+
+def _shade_region(ax, lons, lats, grid_mask):
+    ax.contourf(lons, lats, grid_mask, levels=[0.5, 1.5], colors=["#c026d3"], alpha=0.3, zorder=1)
+    # A tight region is a handful of cells; outline it so it reads as a shape rather than a speck.
+    ax.contour(lons, lats, grid_mask, levels=[0.5], colors=["#86198f"], linewidths=1.5, zorder=2)
 
 
 def _geodesic_circle(centre, radius_km, points: int = 361):
@@ -252,11 +261,39 @@ def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "J
         extent = (interesting[:, 1].min() - pad, interesting[:, 1].max() + pad,
                   interesting[:, 0].min() - pad, interesting[:, 0].max() + pad)
 
+    rings = _borders("borders_region.geojson")
     figure, ax = plt.subplots(figsize=(11, 8))
-    _basemap(ax, _borders("borders_region.geojson"), extent)
-    ax.contourf(lons, lats, mask.reshape(shape), levels=[0.5, 1.5], colors=["#c026d3"], alpha=0.3, zorder=1)
-    # A tight region is only a few cells; outline it so it reads as a shape rather than a speck.
-    ax.contour(lons, lats, mask.reshape(shape), levels=[0.5], colors=["#86198f"], linewidths=1.5, zorder=2)
+    _basemap(ax, rings, extent)
+    _shade_region(ax, lons, lats, mask.reshape(shape))
+
+    # When the region is a rounding error on the frame — which is what success looks like, and
+    # exactly when a reader most wants to see it — put it in an inset rather than leave a speck.
+    if mask.any() and np.ptp(points[mask][:, 1]) < 0.12 * (extent[1] - extent[0]):
+        inside = points[mask]
+        margin = max(1.2, np.ptp(inside[:, 1]), np.ptp(inside[:, 0]))
+        close = (inside[:, 1].min() - margin, inside[:, 1].max() + margin,
+                 inside[:, 0].min() - margin, inside[:, 0].max() + margin)
+        # Park the inset in whichever corner is furthest from everything worth seeing, so it does
+        # not end up covering the region it is magnifying.
+        def _fraction(lat, lon):
+            return ((lon - extent[0]) / (extent[1] - extent[0]),
+                    (lat - extent[2]) / (extent[3] - extent[2]))
+
+        busy = [_fraction(inside[:, 0].mean(), inside[:, 1].mean())]
+        busy += [_fraction(*SITES[name]) for name in sites]
+        corners = {(0.02, 0.60): (0.21, 0.79), (0.60, 0.60): (0.79, 0.79),
+                   (0.02, 0.02): (0.21, 0.21), (0.60, 0.02): (0.79, 0.21)}
+        x0, y0 = max(corners, key=lambda c: min(
+            (corners[c][0] - bx) ** 2 + (corners[c][1] - by) ** 2 for bx, by in busy))
+        inset = ax.inset_axes([x0, y0, 0.38, 0.38])
+        _basemap(inset, rings, close, labels=False)
+        _shade_region(inset, lons, lats, mask.reshape(shape))
+        for name in sites:
+            lat, lon = SITES[name]
+            if close[0] <= lon <= close[1] and close[2] <= lat <= close[3]:
+                inset.plot(lon, lat, "*", color="#b91c1c", markersize=13, zorder=4)
+        inset.set_title(f"{region_span_km(mask, points):,.0f} km across", fontsize=9, color="#86198f")
+        ax.indicate_inset_zoom(inset, edgecolor="#86198f", linewidth=1.2, alpha=0.9)
 
     for name, (lat, lon) in LANDMARKS.items():
         if not (extent[0] <= lon <= extent[1] and extent[2] <= lat <= extent[3]):

@@ -46,8 +46,10 @@ stalling enough to cover the claim inflates the region to 7,000 km, which answer
 mechanism works on the question export control actually asks; it fails on the one the lab opens
 with.
 
-The region is drawn as text and as a map over country borders, the latter zooming automatically
-when the region is tight enough that it would otherwise be a sub-pixel smudge. Part 4 draws the jitter
+The region is drawn as text and as a map over country borders. When the region is tight the map
+frames it and adds an inset magnifying it, because a well-constrained region is a couple of percent
+of the frame and would otherwise be an invisible speck — the figure would look empty exactly when
+the measurement had worked. Part 4 draws the jitter
 floor as a true geodesic circle over the Singapore Strait, against the borders it is supposed to
 resolve — it covers three countries.
 
