@@ -124,6 +124,40 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 # Identical to the last bit, on every row sampled, with no tolerance involved. Twenty forward
 # passes bought a clean audit of a two-hundred-row day, and the same twenty would have bought a
 # clean audit of two hundred million rows. That is why the mechanism keeps getting proposed.
+
+# %% [markdown]
+# ### What a caught operator looks like
+#
+# A clean result only means something if a dirty one looks different, so before breaking the audit,
+# watch it work. Below is a datacentre that served twenty rows from altered weights and logged them
+# honestly.
+
+# %%
+caught_transcript = lab.log_run(model, tokenizer, prompts[:20], tampered_rows=range(20))
+flagged = spot_check(
+    caught_transcript, lab.make_recomputer(caught_transcript, model, tokenizer), 20, np.random.default_rng(0)
+)
+print(f"{len(flagged)} of 20 rows flagged\n")
+
+row = caught_transcript[flagged[0]]
+print(f"prompt          {row.prompt}")
+print(f"logged digest   {row.digest}")
+print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer)(flagged[0])}")
+
+# %% [markdown]
+# Every row, and not marginally: a digest either matches or it doesn't, so there is nothing to
+# argue about in a report. Note what the auditor never had to do. They did not have to know what
+# the operator changed, or send a prompt designed to expose it, or understand the model at all.
+# They compared numbers.
+#
+# That is worth holding on to, because it is exactly the case behavioural evaluation cannot reach.
+# Day 3's sleeper agent answers normally on everything except its trigger, so testing it finds
+# nothing unless you already know what to send ([Hubinger et al., 2024](https://arxiv.org/abs/2401.05566)).
+# A backdoor is still a weight change, and a weight change moves the logits on every prompt, so a
+# backdoored checkpoint fails this digest on perfectly ordinary traffic while the backdoor sleeps.
+# An auditor holding the reference weights catches on row one what a probe would need the trigger
+# to find. Part 4 puts a limit on that, since a small enough change hides once exact comparison
+# gives way to a tolerance, but a backdoor trained to survive fine-tuning is not a small change.
 #
 # Now go and break the audit.
 
@@ -242,10 +276,10 @@ for rate in (0.10, 0.02, 0.001, 0.0001):
 # rate of exactly zero on your sample and whatever it likes on everyone else's, and no `k` finds
 # the cheat.
 #
-# The same applies to a model that has been backdoored rather than swapped. Behaviour conditioned
-# on a trigger sits at a rate you don't get to estimate, on inputs you would never think to send
-# ([Hubinger et al., 2024](https://arxiv.org/abs/2401.05566)). The Day 3 lab is the same
-# mechanism, seen here as something an auditor has to find rather than something a probe catches.
+# Routing is what makes a backdoored checkpoint hard here, rather than the backdoor itself. Serving
+# one backdoored model to everybody fails the digest on ordinary rows, as it did above. Serving the
+# reference model to anything that looks like an audit and the backdoored one to the rest brings
+# back the coverage problem, because the rows you draw are the rows they chose to serve honestly.
 #
 # What breaks the symmetry is who chooses the inputs. Sampling the operator's log lets them
 # anticipate you; sending your own prompts, indistinguishable from real traffic, does not. Passive

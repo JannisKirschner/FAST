@@ -27,6 +27,12 @@ literature. Built naively it works: exact digest matches, a swapped model caught
 sampling arithmetic favourable enough that a one-in-ten-thousand cheat falls to recomputing a
 third of a percent of a day's traffic.
 
+Part 1 also shows the audit catching a swapped model outright, which is where it earns the
+comparison with behavioural testing. A backdoored checkpoint is behaviourally invisible until
+somebody sends the trigger, but it is still a weight change, so it fails an exact digest on
+perfectly ordinary prompts while the backdoor sleeps. Recomputation does not test behaviour, and
+that is its one clear advantage over the Day 3 probes.
+
 Then each cheat removes one unstated assumption. The operator authors the log, so recomputation
 checks a document against a model and never touches the serving path. The operator chooses which
 rows to cheat on and can recognise audit traffic, so a sample drawn from their own log is one
