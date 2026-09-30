@@ -1,27 +1,29 @@
 # %% [markdown]
 # # Inference recomputation: auditing a claim about a computation you didn't run
 #
-# A datacentre is under an agreement — a treaty clause, a customer contract, a licence condition —
+# A datacentre is under an agreement (a treaty clause, a customer contract, a licence condition)
 # that says *you will run this model, and only this model*. You are the auditor. You cannot watch
 # the racks, you cannot see the weights while they are loaded, and you cannot be in the room for
 # every request. What you can do is ask for the operator's log of what they ran, take some rows at
-# random, run those same prompts yourself on your own copy of the model, and check that you get the
-# same answer.
+# random, run those same prompts yourself on your own copy of the model, and check that you get
+# the same answer.
 #
-# That is inference recomputation, and it is the cheapest verification mechanism that exists:
-# no new hardware, no cryptography, no trust in the operator. It is a real proposal, not a straw
-# man — spot-checking a sample of logged work runs through most of the near-term compute
-# verification literature ([Cankaya, 2026](https://www.lesswrong.com/posts/fgvmKqRGvBteKeDoc/a-system-overview-for-near-term-low-trust-ai-compute);
-# [Shavit, 2023](https://arxiv.org/abs/2303.11341)).
+# That is inference recomputation, the cheapest verification mechanism that exists: no new
+# hardware, no cryptography, no trust in the operator. Spot-checking a sample of logged work runs
+# through most of the near-term compute verification literature
+# ([Cankaya,
+# 2026](https://www.lesswrong.com/posts/fgvmKqRGvBteKeDoc/a-system-overview-for-near-term-low-trust-ai-compute);
+# [Shavit, 2023](https://arxiv.org/abs/2303.11341)), so this is a live proposal rather than a
+# straw man.
 #
 # You'll build the auditor first, and it will work: exact matches, cheating caught, clean bill of
-# health. Then you'll take the operator's side three times and get past your own audit — once
+# health. Then you'll take the operator's side three times and get past your own audit, once
 # without touching a single logged number. Each cheat breaks a different assumption you didn't
-# know you were making, and what survives at the end is a fairly short list of things that would
-# have to be true for any of this to mean anything.
+# know you were making, and what survives at the end is a short list of things that would have to
+# be true before a recomputation audit means anything.
 #
-# **Duration:** 90 min. **Prerequisites:** Day 0. **GPU:** T4 or better (~3 min of compute, all of
-# it short forward passes — nothing here trains).
+# **Duration:** 90 min. **Prerequisites:** Day 0. **GPU:** T4 or better (~3 min of compute, all
+# short forward passes; nothing here trains).
 
 # %%
 # Installs the lab package on Colab; skipped when it's already importable (e.g. a local editable install).
@@ -48,8 +50,8 @@ setup(require_gpu=True)
 # The datacentre serves a day of ordinary traffic and writes down what it ran. Real inference APIs
 # already log something close to this: for each request, the prompt and the top of the next-token
 # distribution, the same `logprobs` field you get back from a commercial endpoint. The model's
-# output for one step is a vector over the vocabulary, and the top 32 entries of it are a fingerprint
-# of which weights produced it.
+# output for one step is a vector over the vocabulary, and its top 32 entries are a fingerprint of
+# the weights that produced them.
 #
 # Loading the model takes a minute; logging the workload is a forward pass per row.
 
@@ -67,15 +69,15 @@ print(f"top logits {np.round(row.top_logits[:6], 3)} ...")
 print(f"digest     {row.digest}")
 
 # %% [markdown]
-# The `digest` is a hash over the logged ids and logits. It is there so that comparing two rows is
-# a string equality rather than a judgement call: either your recomputation produced the same
-# numbers, bit for bit, or it didn't.
+# The `digest` is a hash over the logged ids and logits, which makes comparing two rows a string
+# equality rather than a judgement call. Either your recomputation produced the same numbers, bit
+# for bit, or it didn't.
 
 # %% [markdown]
 # ## Part 1: the audit works
 #
-# An auditor who recomputed every row would just be running the workload again, at the operator's
-# cost, which is not an audit — it's a duplicate datacentre. The whole idea is to check a *sample*
+# An auditor who recomputed every row would be running the workload again at the operator's cost,
+# which builds a duplicate datacentre rather than auditing one. The idea is to check a *sample*
 # and let the arithmetic of sampling carry the rest.
 #
 # We give the auditor the most favourable conditions that exist: the same weights, at the same
@@ -84,12 +86,11 @@ print(f"digest     {row.digest}")
 # %% [markdown]
 # ### Exercise: spot-check the transcript
 #
-# Pick `k` rows at random, recompute each one, and report the ones that don't match. `recompute(i)`
-# re-runs row `i` on your copy of the model and hands back the digest it got, so a row is a
-# mismatch when `recompute(i)` differs from `records[i].digest`.
+# Pick `k` rows at random, recompute each one, and report the ones that don't match.
+# `recompute(i)` re-runs row `i` on your copy of the model and hands back the digest it computed,
+# so a row is a mismatch when `recompute(i)` differs from `records[i].digest`.
 #
 # Every call to `recompute` is a forward pass you are paying for, so make exactly `k` of them.
-
 
 # %%
 @exercise
@@ -114,12 +115,11 @@ mismatches = spot_check(transcript, recompute, 20, np.random.default_rng(0))
 print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} mismatches: {mismatches}")
 
 # %% [markdown]
-# Not "close", not "within tolerance" — identical, to the last bit, on every row sampled. Twenty
-# forward passes bought a clean audit of a two-hundred-row day, and the same twenty would have
-# bought it over two hundred million rows. That is an extraordinarily good deal, and it is why this
-# mechanism keeps getting proposed.
+# Identical to the last bit, on every row sampled, with no tolerance involved. Twenty forward
+# passes bought a clean audit of a two-hundred-row day, and the same twenty would have bought a
+# clean audit of two hundred million rows. That is why the mechanism keeps getting proposed.
 #
-# Now go and break it.
+# Now go and break the audit.
 
 # %% [markdown]
 # ## Part 2: the log is not the world
@@ -128,7 +128,7 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 #
 # Nothing in Part 1 connected the numbers in that file to anything that happened on the serving
 # path. So the operator runs the honest model to produce a log, and serves users from something
-# else. Below, the same four prompts: what the log says the model produced, and what the user
+# else. Below, the same eight prompts: what the log says the model produced, and what the user
 # actually received.
 
 # %%
@@ -139,12 +139,11 @@ lab.compare_answers(sample, logged_answers, served_answers)
 
 # %% [markdown]
 # Note how many answers *don't* differ. A substituted model still agrees with the honest one on
-# most ordinary traffic, because most ordinary traffic has an obvious answer — which is worth
-# filing away, since it means comparing outputs by eye is a weak instrument too.
+# most ordinary traffic, because most ordinary traffic has an obvious answer. Comparing outputs by
+# eye is a weak instrument too.
 #
-# Now run your auditor against this datacentre. The transcript is the honest one from Part 1, and
-# that is exactly the point: the operator kept a perfectly truthful record of a computation they
-# did not serve from.
+# Now run your auditor against this datacentre. The transcript is the honest one from Part 1: the
+# operator kept a perfectly truthful record of a computation they did not serve from.
 
 # %%
 mismatches = spot_check(transcript, lab.make_recomputer(transcript, model, tokenizer), 40, np.random.default_rng(1))
@@ -154,19 +153,19 @@ print("what the audit established: the log is consistent with the claimed model"
 print("what the audit did not establish: that the log describes what the datacentre did")
 
 # %% [markdown]
-# No amount of sampling fixes this, and no tightening of the comparison fixes it either. You could
-# recompute all two hundred rows and still learn nothing about the served traffic. The gap is
-# structural: recomputation checks a *document* against a model, and the operator authors the
+# No amount of sampling closes that gap, and no tightening of the comparison closes it either. You
+# could recompute all two hundred rows and still learn nothing about the served traffic. The gap
+# is structural: recomputation checks a *document* against a model, and the operator authors the
 # document.
 #
-# Closing it means the record has to be produced by something the operator doesn't control. That is
-# the entire motivation for putting verification in the hardware — an output signed inside the chip
-# at the moment it is generated, by a key the operator can't extract
+# Closing the gap means the record has to be produced by something the operator doesn't control.
+# That is the motivation for putting verification in the hardware, with an output signed inside
+# the chip at the moment it is generated, by a key the operator can't extract
 # ([Aarne, Fist et al., 2024](https://www.cnas.org/publications/reports/secure-governable-chips);
-# [Petrie et al., 2025](https://arxiv.org/abs/2506.15093)) — or for running the workload inside an
+# [Petrie et al., 2025](https://arxiv.org/abs/2506.15093)), or for running the workload inside an
 # attested enclave that reports what it loaded
-# ([Schabl et al., 2025](https://arxiv.org/abs/2506.23706)). Those mechanisms are not an upgrade to
-# the audit you just wrote. They are the thing that makes it mean anything at all.
+# ([Schabl et al., 2025](https://arxiv.org/abs/2506.23706)). The audit you just wrote means
+# nothing without one of those.
 #
 # For the rest of the lab, assume that problem solved: the log is now bound to the hardware and
 # faithfully records what really ran.
@@ -174,12 +173,12 @@ print("what the audit did not establish: that the log describes what the datacen
 # %% [markdown]
 # ## Part 3: cheat where the sample isn't
 #
-# The operator is honest about what they log, and dishonest about 2% of traffic. One customer, one
-# region, one hour of the day — served from cheaper weights, and logged as such, because the log
-# is now out of their hands.
+# The operator is honest about what they log, and dishonest about 2% of traffic: one customer, one
+# region, one hour of the day, served from cheaper weights and logged as such, because the log is
+# now out of their hands.
 #
-# They are not hiding the evidence — a tampered row recomputes wrong, and they know it. They are
-# betting on which rows you draw. Run the audit a few times with different random samples.
+# A tampered row recomputes wrong and the operator knows it. Their bet is on which rows you draw.
+# Run the audit a few times with different random samples.
 
 # %%
 cheating_rows = lab.cheat_rows(len(prompts))
@@ -193,8 +192,8 @@ for seed in range(5):
     print(f"audit {seed}: checked 20 rows, found {caught if caught else 'nothing'}")
 
 # %% [markdown]
-# When the audit does land on a tampered row it catches it instantly — the digest is not close,
-# it is wrong. Detection was never the difficulty. Coverage is.
+# When the audit lands on a tampered row it catches that row instantly, because the digest is
+# wrong rather than close. The difficulty is coverage.
 
 # %% [markdown]
 # ### Exercise: how many rows do you have to check?
@@ -202,8 +201,7 @@ for seed in range(5):
 # Each row you draw independently hits a cheating row with probability `cheat_rate`. Find the
 # smallest number of rows that makes the chance of drawing at least one of them at least
 # `confidence`. This is the arithmetic behind every inspection regime that samples rather than
-# enumerates, and it is the number that decides whether an audit is affordable.
-
+# enumerates, and the number decides whether an audit is affordable.
 
 # %%
 @exercise
@@ -227,41 +225,43 @@ for rate in (0.10, 0.02, 0.001, 0.0001):
     print(f"{rate:>11.2%}  {k:>22,}  {k / 10_000_000:>27.3%}")
 
 # %% [markdown]
-# The costs stay modest, which is the surprise. Even a one-in-ten-thousand cheat is caught by
-# recomputing a third of a percent of the day. Sampling is not the weak point here.
+# Even a one-in-ten-thousand cheat is caught by recomputing a third of a percent of the day, so
+# the costs stay modest.
 #
-# The weak point is the assumption above it. That arithmetic assumes the operator picked the
+# The weak point is the assumption above that arithmetic, which is that the operator picked the
 # cheating rows *before* seeing which ones you would ask for, and that your draws are independent
 # of their choice. Neither holds. The operator sees each request as it arrives, and audit traffic
 # is not hard to recognise: it arrives in a burst, from one account, on prompts nobody else sends.
 # A datacentre that serves the honest model to anything it suspects is being audited has a cheat
-# rate of exactly zero on your sample and whatever it likes on everyone else's, and no `k` finds it.
+# rate of exactly zero on your sample and whatever it likes on everyone else's, and no `k` finds
+# the cheat.
 #
-# The same applies to a model that has been backdoored rather than swapped: behaviour conditioned
+# The same applies to a model that has been backdoored rather than swapped. Behaviour conditioned
 # on a trigger sits at a rate you don't get to estimate, on inputs you would never think to send
-# ([Hubinger et al., 2024](https://arxiv.org/abs/2401.05566) — the Day 3 lab is the same
-# mechanism, here as something an auditor has to find rather than something a probe catches).
+# ([Hubinger et al., 2024](https://arxiv.org/abs/2401.05566)). The Day 3 lab is the same
+# mechanism, seen here as something an auditor has to find rather than something a probe catches.
 #
 # What breaks the symmetry is who chooses the inputs. Sampling the operator's log lets them
 # anticipate you; sending your own prompts, indistinguishable from real traffic, does not. Passive
-# audit of a log is a much weaker instrument than active probing, and the difference costs nothing
-# to implement and everything to leave out.
+# audit of a log is a much weaker instrument than active probing, and active probing costs nothing
+# extra to build.
 
 # %% [markdown]
 # ## Part 4: your tolerance is their budget
 #
 # Everything so far let the auditor recompute on the datacentre's own machine at the datacentre's
-# own precision. No auditor gets that. They arrive with their own rig: a different GPU, a different
-# kernel, a different numerical precision, and the operator's fleet is not identical to itself
-# either.
+# own precision. No auditor gets that. They arrive with their own rig: a different GPU, a
+# different kernel, a different numerical precision, and the operator's fleet is not identical to
+# itself either.
 #
 # Floating-point addition is not associative, so the same weights and the same prompt produce
 # different low-order bits when the arithmetic is arranged differently. Precision is the loudest
-# version of this, but batch size alone is enough — a row computed in a batch of 32 and the same
+# version of that, but batch size alone is enough: a row computed in a batch of 32 and the same
 # row computed alone go through different reduction orders and come out different
-# ([Thinking Machines, 2025](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)).
+# ([Thinking Machines,
+# 2025](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/)).
 #
-# Load the auditor's rig and re-run Part 1's audit — the honest transcript, the one you already
+# Load the auditor's rig and re-run Part 1's audit on the honest transcript, the one you already
 # certified clean.
 
 # %%
@@ -272,8 +272,8 @@ print("the equality test is dead; nobody cheated")
 
 # %% [markdown]
 # Exact comparison is gone, and with it the property that made Part 1 so cheap. The auditor has to
-# fall back on a distance — how far apart the claimed and recomputed logits are — and a line drawn
-# across it. `recompute_deltas` gives the largest logit disagreement per row.
+# fall back on a distance, meaning how far apart the claimed and recomputed logits are, and a line
+# drawn across that distance. `recompute_deltas` gives the largest logit disagreement per row.
 
 # %%
 honest_deltas = lab.recompute_deltas(transcript, audit_model, audit_tokenizer)
@@ -282,11 +282,10 @@ print(f"honest disagreement: median {np.median(honest_deltas):.3f}, max {honest_
 # %% [markdown]
 # ### Exercise: set the tolerance
 #
-# Pick the line. Too tight and you spend the week accusing honest operators of treaty violations on
-# the strength of rounding; too loose and you certify anything. Calibrate it the way a monitor is
-# calibrated anywhere else: from a budget for how often you are willing to be wrong about an
-# honest party.
-
+# Pick the line. Too tight and you spend the week accusing honest operators of treaty violations
+# on the strength of rounding; too loose and you certify anything. Calibrate the line the way a
+# monitor is calibrated anywhere else, from a budget for how often you are willing to be wrong
+# about an honest party.
 
 # %%
 @exercise
@@ -298,7 +297,7 @@ def calibrate_tolerance(honest_deltas, false_accusation_rate):
     `honest_deltas` is strictly greater than `t`. A rate of 0 means no honest row may exceed it.
 
     "At most" is the whole specification, and it has to hold on a short calibration set as well as
-    a long one — which is where the obvious one-liner will let you down.
+    a long one, which is where the obvious one-liner will let you down.
     """
     return float(np.quantile(honest_deltas, 1 - false_accusation_rate, method="higher"))
 
@@ -310,9 +309,10 @@ tolerance = calibrate_tolerance(honest_deltas, 0.05)
 print(f"tolerance at a 5% false-accusation budget: {tolerance:.3f}")
 
 # %% [markdown]
-# Now the operator gets to see that number too — or estimate it, which is easier, because it is a
-# property of commodity hardware and not a secret. Below, the same tamper as Part 2, dialled down.
-# Each strength is a different distance from the model the operator promised to run.
+# Now the operator gets to see that number too, or estimate it, which is easier, because the noise
+# floor is a property of commodity hardware rather than a secret. Below, the same tamper as Part
+# 2, dialled down. Each strength is a different distance from the model the operator promised to
+# run.
 
 # %%
 sweep_prompts = prompts[:40]
@@ -332,8 +332,7 @@ print("measured", len(strengths), "tampered fleets")
 # ### Exercise: score the audit
 #
 # Report what the line actually buys. Everything above the tolerance is flagged: on cheating rows
-# that is a catch, on honest rows it is an accusation you will have to withdraw.
-
+# that is a catch, on honest rows an accusation you will have to withdraw.
 
 # %%
 @exercise
@@ -359,14 +358,15 @@ for strength, deltas in sweep_deltas.items():
 
 # %% [markdown]
 # The bold cheat is caught every time. The small ones are flagged at roughly the rate honest rows
-# are falsely accused — which is not detection, it is your 5% budget firing on schedule and
-# occasionally landing on a cheating row by coincidence. Their disagreement with your recomputation
-# is smaller than the disagreement your own hardware produces on honest work, so no threshold
-# separates them: on this measurement they are not separate things.
+# are falsely accused. That is your 5% budget firing on schedule and occasionally landing on a
+# cheating row by coincidence, not detection. A small tamper's disagreement with your
+# recomputation is smaller than the disagreement your own hardware produces on honest work, so no
+# threshold separates the two; on this measurement they are not separate things.
 #
-# The tolerance you were forced into is a budget you handed the operator. Widen it to stop accusing
-# honest datacentres and you widen what a dishonest one can hide; narrow it and you start issuing
-# violations over arithmetic. Try it — put the budget at 20% and at 0.1% and watch both ends move.
+# The tolerance you were forced into is a budget you handed the operator. Widen the tolerance to
+# stop accusing honest datacentres and you widen what a dishonest one can hide; narrow it and you
+# start issuing violations over arithmetic. Put the budget at 20% and at 1% and watch both ends
+# move.
 
 # %%
 for budget in (0.20, 0.05, 0.01):
@@ -380,48 +380,47 @@ for budget in (0.20, 0.05, 0.01):
 # **Take it further, on your own time:**
 #
 # - The tamper here is undirected noise, which is the least efficient way to spend a budget. Build
-#   one that spends it deliberately: change the model's behaviour on a narrow set of prompts while
-#   moving the logits on ordinary traffic as little as possible. How much behaviour can you buy
-#   under a fixed tolerance?
-# - Reproduce the batch-size effect rather than the precision one: log a row alone and recompute it
-#   inside a padded batch. How large is that disagreement next to the fp16/fp32 gap, and would a
-#   tolerance calibrated for it catch anything at all?
+#   one that spends the budget deliberately: change the model's behaviour on a narrow set of
+#   prompts while moving the logits on ordinary traffic as little as possible. How much behaviour
+#   can you buy under a fixed tolerance?
+# - Reproduce the batch-size effect rather than the precision one: log a row alone and recompute
+#   it inside a padded batch. How large is that disagreement next to the fp16/fp32 gap, and would
+#   a tolerance calibrated for that gap catch anything at all?
 # - The auditor never verified the *model*, only that some model reproduced the log. What does a
-#   digest over the weights get you, and what does it not get you once the operator can load one
-#   file and serve from another?
+#   digest over the weights get you, and what does it stop getting you once the operator can load
+#   one file and serve from another?
 
 # %% [markdown]
 # ## What to take away
 #
 # The audit in Part 1 was real. Exact matching works, spot-checking is cheap, and the sampling
-# arithmetic is genuinely favourable — a one-in-ten-thousand cheat falls to a third of a percent of
-# the traffic. If the problem were "catch an operator who swapped the model and kept honest
-# records on a machine identical to mine", this would be a solved problem for the price of a few
-# thousand forward passes.
+# arithmetic is favourable: a one-in-ten-thousand cheat falls to a third of a percent of the
+# traffic. If the problem were "catch an operator who swapped the model and kept honest records on
+# a machine identical to mine", this would be a solved problem for the price of a few thousand
+# forward passes.
 #
-# Each of the three cheats removed one word from that sentence. **Honest records:** the operator
+# Each of the three cheats took away one piece of that sentence. **Honest records:** the operator
 # writes the log, so recomputation checks a document against a model and never touches the serving
-# path. **Kept:** conditioned behaviour lives at a rate you don't get to estimate, on inputs
-# you don't get to guess, and a sample drawn from the operator's own log is a sample they can
+# path. **Kept:** conditioned behaviour lives at a rate you don't get to estimate, on inputs you
+# don't get to guess, and a sample drawn from the operator's own log is a sample they can
 # anticipate. **Identical to mine:** the moment the auditor's arithmetic differs from the
 # operator's, equality becomes a tolerance, and the tolerance is large enough to hide a real
 # modification inside.
 #
 # What is left is a short list of things that have to be true before a recomputation audit means
 # anything, and every one of them is a hardware or protocol requirement rather than a better
-# statistic: the record is produced by something the operator doesn't control, the auditor chooses
+# statistic. The record is produced by something the operator doesn't control, the auditor chooses
 # the inputs rather than sampling the operator's log, and the arithmetic is reproducible enough
-# that honest disagreement is smaller than the smallest cheat worth catching. The third is the one
-# people assume is free. It is the reason batch-invariant kernels turn up in a governance
+# that honest disagreement is smaller than the smallest cheat worth catching. Reproducibility is
+# the one people assume is free, and the reason batch-invariant kernels turn up in a governance
 # conversation at all, and the reason the serious schemes push the check down into the chip
 # instead of up into the auditor's statistics
-# ([Cankaya, 2026](https://www.lesswrong.com/posts/fgvmKqRGvBteKeDoc/a-system-overview-for-near-term-low-trust-ai-compute);
+# ([Cankaya,
+# 2026](https://www.lesswrong.com/posts/fgvmKqRGvBteKeDoc/a-system-overview-for-near-term-low-trust-ai-compute);
 # [Petrie et al., 2025](https://arxiv.org/abs/2506.15093)).
 #
-# Worth holding on to for the treaty-verification session: none of this was defeated by beating
-# the cryptography or outrunning the sampling. It was defeated by the parts of the arrangement
-# nobody wrote down — who authors the evidence, who picks the sample, and whose machine is the
-# reference.
+# For the treaty-verification session, the three questions that decided every cheat in this lab
+# were who authors the evidence, who picks the sample, and whose machine is the reference.
 
 # %%
 # @lab-only
@@ -429,5 +428,5 @@ for budget in (0.20, 0.05, 0.01):
 # recompute(i) once per drawn row and keep the ones where it disagrees with records[i].digest.
 #
 # Stuck on records_to_check? k draws all miss with probability (1 - cheat_rate) ** k. Solve
-# 1 - (1 - cheat_rate) ** k >= confidence for k and round up — math.ceil and math.log.
+# 1 - (1 - cheat_rate) ** k >= confidence for k and round up, with math.ceil and math.log.
 print("rng.choice for the sample; solve (1 - rate) ** k for the sample size")
