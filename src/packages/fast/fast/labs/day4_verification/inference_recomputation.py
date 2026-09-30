@@ -37,6 +37,7 @@ __all__ = [
     "check_records_to_check",
     "check_spot_check",
     "compare_answers",
+    "describe_tamper",
     "generate",
     "load_audit_model",
     "load_datacentre_model",
@@ -149,6 +150,35 @@ def _decoder_layers(model):
         if target is not None:
             return target
     raise AttributeError(f"can't find the decoder layers on {type(model).__name__}")
+
+
+def describe_tamper(model, strength: float = TAMPER_STRENGTH) -> None:
+    """Print exactly what `tampered` does to the weights, in numbers.
+
+    "The operator served from altered weights" is not a thing anyone can check. This says which
+    tensors move, how many parameters that is, and how far each one travels.
+    """
+    import torch
+
+    layers = _decoder_layers(model)
+    targets = [layer.mlp.down_proj.weight for layer in layers[-_TAMPER_LAYERS:]]
+    touched = sum(weight.numel() for weight in targets)
+    total = sum(parameter.numel() for parameter in model.parameters())
+
+    before = targets[0].detach().clone()
+    with tampered(model, strength):
+        after = targets[0].detach().clone()
+    change = (after - before).float()
+
+    print("what the operator changed")
+    print(f"  gaussian noise at {strength} x each tensor's own standard deviation")
+    print(f"  into mlp.down_proj of the last {_TAMPER_LAYERS} of {len(layers)} transformer blocks")
+    print(f"  {touched:,} of {total:,} parameters ({touched / total:.1%} of the model)")
+    print(f"  mean |change| {change.abs().mean():.2e} against a weight std of {before.float().std():.2e}")
+    print(f"  largest single weight moved by {change.abs().max():.2e}")
+    del before, after, change
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 @contextlib.contextmanager

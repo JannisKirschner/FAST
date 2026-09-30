@@ -128,16 +128,23 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 # %% [markdown]
 # ### What a caught operator looks like
 #
-# A clean result only means something if a dirty one looks different, so before breaking the audit,
-# watch it work. Below is a datacentre that served twenty rows from altered weights and logged them
-# honestly.
+# A clean result only means something if a dirty one looks different, so watch the audit work
+# before breaking it. The operator below served twenty rows from a modified copy of the model and
+# logged them honestly.
+#
+# The modification is gaussian noise added to two weight matrices. It stands in for whatever the
+# operator really did: a cheaper quantisation, an undeclared fine-tune, safety training stripped
+# out, a backdoor trained in. None of that matters to the audit, which only asks whether the
+# weights are the ones they promised to run. `describe_tamper` prints the change in full so you can
+# see how small it is.
 
 # %%
+lab.describe_tamper(model)
 caught_transcript = lab.log_run(model, tokenizer, prompts[:20], tampered_rows=range(20))
 flagged = spot_check(
     caught_transcript, lab.make_recomputer(caught_transcript, model, tokenizer), 20, np.random.default_rng(0)
 )
-print(f"{len(flagged)} of 20 rows flagged\n")
+print(f"\n{len(flagged)} of 20 rows flagged\n")
 
 row = caught_transcript[flagged[0]]
 print(f"prompt          {row.prompt}")
@@ -145,10 +152,12 @@ print(f"logged digest   {row.digest}")
 print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer)(flagged[0])}")
 
 # %% [markdown]
-# Every row, and not marginally: a digest either matches or it doesn't, so there is nothing to
-# argue about in a report. Note what the auditor never had to do. They did not have to know what
-# the operator changed, or send a prompt designed to expose it, or understand the model at all.
-# They compared numbers.
+# Every row, off a change to 1% of the parameters that leaves the model answering ordinary
+# questions perfectly sensibly. A digest either matches or it doesn't, so there is nothing to argue
+# about in a report.
+#
+# Note what the auditor never had to do. They did not have to know which tensors moved, or send a
+# prompt designed to expose the change, or understand the model at all. They compared numbers.
 #
 # That is worth holding on to, because it is exactly the case behavioural evaluation cannot reach.
 # Day 3's sleeper agent answers normally on everything except its trigger, so testing it finds
