@@ -168,8 +168,12 @@ def tampered(model, strength: float = TAMPER_STRENGTH, seed: int = 0):
     try:
         with torch.no_grad():
             for weight in targets:
+                # Noise is drawn on the CPU so the same seed gives the same tamper on any device.
+                # float() pulls the standard deviation off the accelerator first: scaling a CPU
+                # tensor by a CUDA scalar raises, and CI has no GPU to catch that on.
                 noise = torch.randn(weight.shape, generator=generator, dtype=torch.float32)
-                weight.add_((strength * weight.float().std() * noise).to(weight.device, weight.dtype))
+                scale = strength * float(weight.detach().float().std())
+                weight.add_((scale * noise).to(weight.device, weight.dtype))
         yield model
     finally:
         with torch.no_grad():
