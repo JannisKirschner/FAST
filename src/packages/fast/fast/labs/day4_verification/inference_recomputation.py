@@ -37,10 +37,12 @@ __all__ = [
     "check_records_to_check",
     "check_spot_check",
     "compare_answers",
+    "describe_substitute",
     "describe_tamper",
     "generate",
     "load_audit_model",
     "load_datacentre_model",
+    "load_substitute_model",
     "log_run",
     "make_recomputer",
     "recompute_deltas",
@@ -122,6 +124,43 @@ def load_datacentre_model():
     model, tokenizer = load_model(name, dtype="float32")
     print(f"datacentre: {name} at float32 on {model.device}")
     return model, tokenizer
+
+
+def load_substitute_model():
+    """The checkpoint a dishonest operator serves instead: the same family, without the tuning.
+
+    Qwen2.5-0.5B rather than Qwen2.5-0.5B-Instruct, and the 135M pair under CI. Same architecture,
+    same tokenizer, same vocabulary, different weights — which is the whole point. It is a real
+    substitution an operator might make rather than a synthetic one: the base checkpoint never had
+    the instruction tuning or the safety training that the agreement is about, and it is sitting on
+    the same disk.
+    """
+    name = "HuggingFaceTB/SmolLM2-135M" if ci_mode() else "Qwen/Qwen2.5-0.5B"
+    model, _ = load_model(name, dtype="float32")
+    print(f"served:     {name} at float32 on {model.device}")
+    return model
+
+
+def describe_substitute(claimed, served) -> None:
+    """Print how far apart two checkpoints are, tensor by tensor."""
+    import torch
+
+    differing, total, largest, weighted = 0, 0, 0.0, 0.0
+    served_weights = dict(served.named_parameters())
+    with torch.no_grad():
+        for name, weight in claimed.named_parameters():
+            other = served_weights.get(name)
+            if other is None or other.shape != weight.shape:
+                continue
+            change = (other.detach().float() - weight.detach().float()).abs()
+            total += weight.numel()
+            differing += int((change > 0).sum())
+            largest = max(largest, float(change.max()))
+            weighted += float(change.sum())
+
+    print("how the served checkpoint differs from the claimed one")
+    print(f"  {differing:,} of {total:,} parameters differ ({differing / total:.1%})")
+    print(f"  mean |difference| {weighted / total:.2e}, largest {largest:.2e}")
 
 
 def load_audit_model():
@@ -260,20 +299,26 @@ def _record(prompt: str, logits: np.ndarray, tokenizer) -> Record:
     )
 
 
-def log_run(model, tokenizer, prompts, *, tampered_rows=(), strength=TAMPER_STRENGTH, seed=0):
+def log_run(model, tokenizer, prompts, *, tampered_rows=(), served_model=None,
+            strength=TAMPER_STRENGTH, seed=0):
     """Run the workload and write down what happened: one `Record` per prompt.
 
-    Rows listed in `tampered_rows` are served from altered weights and logged truthfully, which
-    is the dishonest datacentre of Part 3. With no tampered rows this is an honest transcript.
+    Rows listed in `tampered_rows` are served from something other than `model` and logged
+    truthfully, which is the dishonest datacentre of Part 3. Pass `served_model` to serve those rows
+    from a different checkpoint; without one they are served from `model` under `tampered`, whose
+    `strength` dials how far the weights moved. Prompts are always formatted with `tokenizer`, the
+    claimed model's, because the request is the same whoever answers it.
     """
     tampered_rows = {int(i) for i in tampered_rows}
     records = []
     for index, prompt in enumerate(prompts):
-        if index in tampered_rows:
+        if index not in tampered_rows:
+            logits = _next_token_logits(model, tokenizer, prompt)
+        elif served_model is not None:
+            logits = _next_token_logits(served_model, tokenizer, prompt)
+        else:
             with tampered(model, strength, seed):
                 logits = _next_token_logits(model, tokenizer, prompt)
-        else:
-            logits = _next_token_logits(model, tokenizer, prompt)
         records.append(_record(prompt, logits, tokenizer))
     return records
 
@@ -317,13 +362,20 @@ def recompute_deltas(records, model, tokenizer, indices=None) -> np.ndarray:
     return np.array(deltas)
 
 
-def generate(model, tokenizer, prompts, max_new_tokens: int = 24, strength: float = 0.0):
-    """What a user actually received: generated text, optionally from tampered weights."""
+def generate(model, tokenizer, prompts, max_new_tokens: int = 24, strength: float = 0.0,
+             served_model=None):
+    """What a user actually received: generated text, from `model` unless something else served it.
+
+    `served_model` answers instead when given; otherwise `strength` applies the synthetic tamper.
+    """
     from fast.models import chat
 
+    if served_model is not None:
+        return [chat(served_model, tokenizer, prompt, max_new_tokens=max_new_tokens, do_sample=False)
+                for prompt in prompts]
     context = tampered(model, strength) if strength else contextlib.nullcontext(model)
-    with context as served:
-        return [chat(served, tokenizer, prompt, max_new_tokens=max_new_tokens, do_sample=False)
+    with context as serving:
+        return [chat(serving, tokenizer, prompt, max_new_tokens=max_new_tokens, do_sample=False)
                 for prompt in prompts]
 
 

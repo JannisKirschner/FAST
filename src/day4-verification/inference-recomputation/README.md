@@ -28,7 +28,10 @@ sampling arithmetic favourable enough that a one-in-ten-thousand cheat falls to 
 third of a percent of a day's traffic.
 
 Part 1 also shows the audit catching a swapped model outright, which is where it earns the
-comparison with behavioural testing. A backdoored checkpoint is behaviourally invisible until
+comparison with behavioural testing. The swap is a named checkpoint rather than a synthetic
+change: the agreement is about Qwen2.5-0.5B-Instruct and the operator serves Qwen2.5-0.5B, the
+base model it was tuned from. Same architecture, same tokenizer, already on the same disk, and
+none of the training the agreement is about. A backdoored checkpoint is behaviourally invisible until
 somebody sends the trigger, but it is still a weight change, so it fails an exact digest on
 perfectly ordinary prompts while the backdoor sleeps. Recomputation does not test behaviour, and
 that is its one clear advantage over the Day 3 probes.

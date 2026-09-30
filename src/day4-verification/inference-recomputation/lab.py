@@ -132,15 +132,16 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 # before breaking it. The operator below served twenty rows from a modified copy of the model and
 # logged them honestly.
 #
-# The modification is gaussian noise added to two weight matrices. It stands in for whatever the
-# operator really did: a cheaper quantisation, an undeclared fine-tune, safety training stripped
-# out, a backdoor trained in. None of that matters to the audit, which only asks whether the
-# weights are the ones they promised to run. `describe_tamper` prints the change in full so you can
-# see how small it is.
+# The substitution is a real one you can name. The agreement is about Qwen2.5-0.5B-Instruct, the
+# checkpoint that went through instruction tuning and safety training. The operator serves
+# Qwen2.5-0.5B, the base model it was tuned from: same architecture, same tokenizer, same
+# vocabulary, already sitting on the same disk, and none of the training the agreement is about.
 
 # %%
-lab.describe_tamper(model)
-caught_transcript = lab.log_run(model, tokenizer, prompts[:20], tampered_rows=range(20))
+substitute = lab.load_substitute_model()
+lab.describe_substitute(model, substitute)
+
+caught_transcript = lab.log_run(model, tokenizer, prompts[:20], tampered_rows=range(20), served_model=substitute)
 flagged = spot_check(
     caught_transcript, lab.make_recomputer(caught_transcript, model, tokenizer), 20, np.random.default_rng(0)
 )
@@ -152,9 +153,7 @@ print(f"logged digest   {row.digest}")
 print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer)(flagged[0])}")
 
 # %% [markdown]
-# Every row, off a change to 1% of the parameters that leaves the model answering ordinary
-# questions perfectly sensibly. A digest either matches or it doesn't, so there is nothing to argue
-# about in a report.
+# Every row. A digest either matches or it doesn't, so there is nothing to argue about in a report.
 #
 # Note what the auditor never had to do. They did not have to know which tensors moved, or send a
 # prompt designed to expose the change, or understand the model at all. They compared numbers.
@@ -183,13 +182,13 @@ print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer
 # %%
 sample = prompts[:8]
 logged_answers = lab.generate(model, tokenizer, sample)
-served_answers = lab.generate(model, tokenizer, sample, strength=lab.TAMPER_STRENGTH)
+served_answers = lab.generate(model, tokenizer, sample, served_model=substitute)
 lab.compare_answers(sample, logged_answers, served_answers)
 
 # %% [markdown]
-# Note how many answers *don't* differ. A substituted model still agrees with the honest one on
-# most ordinary traffic, because most ordinary traffic has an obvious answer. Comparing outputs by
-# eye is a weak instrument too.
+# The base model does not follow instructions, so the users got visibly worse answers than the log
+# records. Every one of them would have noticed. That is the easy case, and the audit still cannot
+# see it.
 #
 # Now run your auditor against this datacentre. The transcript is the honest one from Part 1: the
 # operator kept a perfectly truthful record of a computation they did not serve from.
@@ -231,7 +230,7 @@ print("what the audit did not establish: that the log describes what the datacen
 
 # %%
 cheating_rows = lab.cheat_rows(len(prompts))
-cheating_transcript = lab.log_run(model, tokenizer, prompts, tampered_rows=cheating_rows)
+cheating_transcript = lab.log_run(model, tokenizer, prompts, tampered_rows=cheating_rows, served_model=substitute)
 print(f"{len(cheating_rows)} of {len(prompts)} rows served from tampered weights: {cheating_rows}\n")
 
 for seed in range(5):
@@ -359,9 +358,14 @@ print(f"tolerance at a 5% false-accusation budget: {tolerance:.3f}")
 
 # %% [markdown]
 # Now the operator gets to see that number too, or estimate it, which is easier, because the noise
-# floor is a property of commodity hardware rather than a secret. Below, the same tamper as Part
-# 2, dialled down. Each strength is a different distance from the model the operator promised to
-# run.
+# floor is a property of commodity hardware rather than a secret.
+#
+# The cheat changes shape here. A checkpoint swap is one fixed distance from the promised model,
+# and the base model sits so far outside any tolerance that it says nothing about where the line
+# falls. Part 4 needs a dial, so the substitution below is gaussian noise scaled to each tensor's
+# own standard deviation. It is the only synthetic thing in this lab, and it is synthetic because
+# no realistic substitution lands close enough to the floor to be interesting: quantise even one
+# transformer block to int8 and the disagreement is several times the honest floor.
 
 # %%
 sweep_prompts = prompts[:40]
