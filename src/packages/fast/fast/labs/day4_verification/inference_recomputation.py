@@ -334,24 +334,24 @@ def _record(prompt: str, logits: np.ndarray, tokenizer) -> Record:
     )
 
 
-def log_run(model, tokenizer, prompts, *, tampered_rows=(), served_model=None, quantise_bits=None,
+def log_run(model, tokenizer, prompts, *, dishonest_rows=(), served_model=None, quantise_bits=None,
             strength=TAMPER_STRENGTH, seed=0):
     """Run the workload and write down what happened: one `Record` per prompt.
 
-    Rows listed in `tampered_rows` are served from something other than `model` and logged
-    truthfully, which is the dishonest datacentre of Part 3. Pass `served_model` to serve those rows
-    from a different checkpoint; without one they are served from `model` under `tampered`, whose
-    `strength` dials how far the weights moved. Prompts are always formatted with `tokenizer`, the
+    Rows listed in `dishonest_rows` are served from something other than `model` and logged
+    truthfully, which is the dishonest datacentre of Part 3. `served_model` serves them from another
+    checkpoint, `quantise_bits` from the same weights rounded down, and with neither they come from
+    `model` under `tampered`, whose `strength` dials how far the weights moved. Prompts are always formatted with `tokenizer`, the
     claimed model's, because the request is the same whoever answers it.
     """
-    tampered_rows = {int(i) for i in tampered_rows}
+    dishonest_rows = {int(i) for i in dishonest_rows}
     records = [None] * len(prompts)
 
     for index, prompt in enumerate(prompts):
-        if index not in tampered_rows:
+        if index not in dishonest_rows:
             records[index] = _record(prompt, _next_token_logits(model, tokenizer, prompt), tokenizer)
 
-    if tampered_rows:
+    if dishonest_rows:
         # One pass for the dishonest rows, so a substitution that rewrites the weights pays for
         # itself once rather than once per row.
         if served_model is not None:
@@ -361,7 +361,7 @@ def log_run(model, tokenizer, prompts, *, tampered_rows=(), served_model=None, q
         else:
             serving = tampered(model, strength, seed)
         with serving as active:
-            for index in sorted(tampered_rows):
+            for index in sorted(dishonest_rows):
                 logits = _next_token_logits(active, tokenizer, prompts[index])
                 records[index] = _record(prompts[index], logits, tokenizer)
 

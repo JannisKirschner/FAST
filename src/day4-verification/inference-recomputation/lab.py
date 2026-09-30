@@ -131,24 +131,23 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 # A clean result only means something if a dirty one looks different, so watch the audit work
 # before breaking it.
 #
-# Here is the substitution, named rather than described. The agreement is about
+# The substitution is a named checkpoint. The agreement is about
 # Qwen2.5-0.5B-Instruct, the checkpoint that went through instruction tuning and safety training.
 # The operator serves Qwen2.5-0.5B, the base model it was tuned from: same architecture, same
 # tokenizer, same vocabulary, already sitting on the same disk, and none of the training the
 # agreement is about. They run twenty rows on it and log the results honestly.
 #
-# `describe_substitute` prints both checkpoints and how far apart they are, so nothing about the
-# cheat is hidden in a helper.
+# `describe_substitute` prints both checkpoints and how far apart they are.
 
 # %%
 substitute = lab.load_substitute_model()
 lab.describe_substitute(model, substitute)
 
 # %% [markdown]
-# Substituting a checkpoint is one way to save money and not the most popular. Serving the promised
-# weights at lower precision is cheaper still and needs no second model on disk: round every weight
-# matrix to 8 or 4 bits per value and the same GPU serves more requests per second. Audit all three
-# the same way, with the claimed model as a control.
+# A second checkpoint is one way to save money. Serving the promised weights at lower precision is
+# cheaper still and needs no second model on disk: round every weight matrix to 8 or 4 bits per
+# value and the same GPU serves more requests per second. Audit all three the same way, with the
+# claimed model as a control.
 
 # %%
 audited = prompts[:20]
@@ -161,7 +160,7 @@ for label, serving in (
     ("the claimed weights rounded to int4", {"quantise_bits": 4}),
 ):
     served_transcripts[label] = lab.log_run(
-        model, tokenizer, audited, tampered_rows=range(len(audited)), **serving
+        model, tokenizer, audited, dishonest_rows=range(len(audited)), **serving
     )
     flagged = spot_check(
         served_transcripts[label],
@@ -179,23 +178,23 @@ print(f"logged digest   {row.digest}")
 print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer)(0)}")
 
 # %% [markdown]
-# Every row of every substitution, and none of the claimed model. Rounding to int8 leaves a model
-# that answers ordinary questions indistinguishably to a reader and is the cheat with the clearest
-# commercial motive: bill for the model you promised, pay to run a cheaper one. It fails the digest
-# on row one all the same, because the audit never asked what the model does. A digest either
-# matches or it doesn't, so there is nothing to argue about in a report.
+# Every row of every substitution, and none of the claimed model. Rounding to int8 keeps the
+# answers coherent, so a user reading them has no way to tell which model served them, and it is
+# the cheat with the clearest commercial motive: bill for the model you promised, pay to run a
+# cheaper one. It fails the digest on row one all the same, because the audit never asked what the
+# model does. A digest either matches or it doesn't, so there is nothing to argue about in a
+# report.
 #
-# Note what the auditor never had to do. They did not have to know which tensors moved, or send a
-# prompt designed to expose the change, or understand the model at all. They compared numbers.
+# The auditor did not have to know which tensors moved, or send a prompt designed to expose the
+# change, or understand the model at all. They compared numbers.
 #
-# That is worth holding on to, because it is exactly the case behavioural evaluation cannot reach.
-# Day 3's sleeper agent answers normally on everything except its trigger, so testing it finds
-# nothing unless you already know what to send ([Hubinger et al., 2024](https://arxiv.org/abs/2401.05566)).
-# A backdoor is still a weight change, and a weight change moves the logits on every prompt, so a
-# backdoored checkpoint fails this digest on perfectly ordinary traffic while the backdoor sleeps.
-# An auditor holding the reference weights catches on row one what a probe would need the trigger
-# to find. Part 4 puts a limit on that, since a small enough change hides once exact comparison
-# gives way to a tolerance, but a backdoor trained to survive fine-tuning is not a small change.
+# That is the case behavioural evaluation cannot reach. Day 3's sleeper agent answers normally on
+# everything except its trigger, so testing it finds nothing unless you already know what to send
+# ([Hubinger et al., 2024](https://arxiv.org/abs/2401.05566)). A backdoor is still a weight change,
+# and a weight change moves the logits on every prompt, so a backdoored checkpoint fails this
+# digest on perfectly ordinary traffic while the backdoor sleeps. An auditor holding the reference
+# weights catches on row one what a probe would need the trigger to find. Part 4 puts a limit on
+# it, since a small enough change hides once exact comparison gives way to a tolerance.
 #
 # Now go and break the audit.
 
@@ -252,15 +251,15 @@ print("what the audit did not establish: that the log describes what the datacen
 # ## Part 3: cheat where the sample isn't
 #
 # The operator is honest about what they log, and dishonest about 2% of traffic: one customer, one
-# region, one hour of the day, served from cheaper weights and logged as such, because the log is
-# now out of their hands.
+# region, one hour of the day, served from the base checkpoint and logged as such, because the log
+# is now out of their hands.
 #
-# A tampered row recomputes wrong and the operator knows it. Their bet is on which rows you draw.
+# A substituted row recomputes wrong and the operator knows it. Their bet is on which rows you draw.
 # Run the audit a few times with different random samples.
 
 # %%
 cheating_rows = lab.cheat_rows(len(prompts))
-cheating_transcript = lab.log_run(model, tokenizer, prompts, tampered_rows=cheating_rows, served_model=substitute)
+cheating_transcript = lab.log_run(model, tokenizer, prompts, dishonest_rows=cheating_rows, served_model=substitute)
 print(f"{len(cheating_rows)} of {len(prompts)} rows served from tampered weights: {cheating_rows}\n")
 
 for seed in range(5):
@@ -270,7 +269,7 @@ for seed in range(5):
     print(f"audit {seed}: checked 20 rows, found {caught if caught else 'nothing'}")
 
 # %% [markdown]
-# When the audit lands on a tampered row it catches that row instantly, because the digest is
+# When the audit lands on a substituted row it catches that row instantly, because the digest is
 # wrong rather than close. The difficulty is coverage.
 
 # %% [markdown]
@@ -393,8 +392,8 @@ print(f"tolerance at a 5% false-accusation budget: {tolerance:.3f}")
 # The cheat changes shape here. A checkpoint swap is one fixed distance from the promised model,
 # and the base model sits so far outside any tolerance that it says nothing about where the line
 # falls. Part 4 needs a dial, so the substitution below is gaussian noise scaled to each tensor's
-# own standard deviation. It is the only synthetic thing in this lab, and it is synthetic because
-# no realistic substitution lands close enough to the floor to be interesting: quantise even one
+# own standard deviation. It is the only synthetic substitution in the lab, and it is there because
+# no real one lands close enough to the floor to show where the line is: quantise even one
 # transformer block to int8 and the disagreement is several times the honest floor.
 
 # %%
@@ -402,7 +401,7 @@ sweep_prompts = prompts[:40]
 strengths = (0.001, 0.002, 0.005, 0.01, 0.02, 0.05)
 sweep_deltas = {
     strength: lab.recompute_deltas(
-        lab.log_run(model, tokenizer, sweep_prompts, tampered_rows=range(len(sweep_prompts)), strength=strength),
+        lab.log_run(model, tokenizer, sweep_prompts, dishonest_rows=range(len(sweep_prompts)), strength=strength),
         audit_model,
         audit_tokenizer,
     )
