@@ -1,12 +1,18 @@
 # %% [markdown]
 # # Inference recomputation: auditing a claim about a computation you didn't run
 #
-# A datacentre is under an agreement (a treaty clause, a customer contract, a licence condition)
-# that says *you will run this model, and only this model*. You are the auditor. You cannot watch
-# the racks, you cannot see the weights while they are loaded, and you cannot be in the room for
-# every request. What you can do is ask for the operator's log of what they ran, take some rows at
-# random, run those same prompts yourself on your own copy of the model, and check that you get
-# the same answer.
+# A datacentre is under an agreement that says *you will run this model, and only this model*.
+# Three different people want that sentence enforced, for three different reasons. A treaty
+# inspector wants to confirm a signatory is running the system it declared. A safety team wants the
+# model answering requests to be the one that went through evals, rather than a quantised variant
+# somebody swapped in for throughput on a busy afternoon. And anyone buying inference through a
+# reseller wants the model they are paying for, not a cheaper one behind the same API name at the
+# same price per token.
+#
+# All three reduce to the same audit. You cannot watch the racks, you cannot see the weights while
+# they are loaded, and you cannot be in the room for every request. What you can do is ask for the
+# operator's log of what they ran, take some rows at random, run those same prompts yourself on
+# your own copy of the model, and check that you get the same answer.
 #
 # That is inference recomputation, the cheapest verification mechanism that exists: no new
 # hardware, no cryptography, no trust in the operator. Spot-checking a sample of logged work runs

@@ -11,6 +11,14 @@ particular model; you get their log, recompute a random sample of it on your own
 the numbers match. Build that auditor, watch it work, then defeat it three times from the
 operator's side.
 
+The same audit serves three parties who rarely turn up in the same room. A treaty inspector
+confirming a signatory runs the system it declared. A safety team confirming the model answering
+requests is the one that went through evals, rather than a quantised variant swapped in for
+throughput. And a buyer of inference through a reseller confirming they get the model they pay
+for rather than a cheaper one behind the same API name. The lab is written around the first,
+since that is the Day 4 theme, but the mechanism and every one of its failures are identical for
+the other two.
+
 ## What it surfaces
 
 Recomputation is the cheapest verification mechanism there is — no new hardware, no cryptography,
