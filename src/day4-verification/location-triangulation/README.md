@@ -34,10 +34,16 @@ Four parts, three functions you write: the distance bound from a round trip, the
 every landmark's bound over a grid, and the delay an operator needs to make a false claim
 consistent. Then two demonstrations — what sets the resolution, and what calibration costs.
 
-The region is drawn twice: as text, which renders anywhere, and on an OpenStreetMap background via
-folium, where you can zoom into the strait and see the sites inside it. Part 4 puts the jitter floor
-on the same map as a circle you can compare against the border it is meant to resolve. Both maps
-degrade to the text version with a clear message if folium isn't available.
+The region is drawn twice: as text, and as a map over country borders. Part 4 draws the jitter
+floor as a true geodesic circle over the Singapore Strait, against the borders it is supposed to
+resolve — it covers three countries.
+
+Borders are [Natural Earth](https://www.naturalearthdata.com/) vectors bundled inside the package,
+not map tiles. The lab drew on hosted tiles first and was blocked for it: twenty participants
+pulling from volunteer-run servers is what the OpenStreetMap tile usage policy exists to prevent,
+and the commercial tile providers want an API key. Natural Earth is public domain, so the data
+ships in the wheel and the maps need no tile server, no key, and no network.
+`tools/build_borders.py` regenerates them if the extent ever changes.
 
 No model and no GPU, so it slots in wherever the day has room, and it pairs with the recomputation
 lab: both mechanisms fail at the same joint, which is that the party being audited authors the

@@ -121,12 +121,13 @@ print(f"the verifier's region spans {lab.region_span_km(region, points):,.0f} km
 lab.show_region(region, points, shape)
 
 # %% [markdown]
-# The same region on a real map. Teal dots are the landmark servers, red markers the candidate
-# sites, and the shaded cells are everywhere consistent with all nine measurements. Zoom into the
-# strait at the bottom left.
+# The same region over country borders. Teal dots are the landmark servers, red stars the candidate
+# sites, and the shaded area is everywhere consistent with all nine measurements at once. Borders
+# are the whole point of the background rather than decoration: the licence asks which *country*
+# the cluster is in, so the useful question is how many of them your region covers.
 
 # %%
-lab.map_region(feasible_mask, rtts)
+lab.plot_region(feasible_mask, rtts)
 
 # %% [markdown]
 # It worked, in the sense that nine numbers and some geometry cut the map down to a region. Whether
@@ -251,11 +252,12 @@ for jitter in (1.5, 0.5, 0.1):
     print(f"jitter of {jitter:>4} ms is worth {jitter / 2 * lab.FIBRE_KM_PER_MS:>3.0f} km of slop in every bound")
 
 # %% [markdown]
-# Drawn to scale, against the border it is supposed to resolve. Every site in the circle is
-# indistinguishable from Singapore as far as this instrument is concerned.
+# Drawn to scale over the strait, against the borders it is supposed to resolve. Everything inside
+# the shape is indistinguishable from Singapore as far as this instrument is concerned — and the
+# shape covers three countries.
 
 # %%
-lab.map_resolution(jitter_ms=1.5)
+lab.plot_resolution(jitter_ms=1.5)
 
 # %% [markdown]
 # The border is a fifth of a millisecond wide. Nothing on the public internet is measured that

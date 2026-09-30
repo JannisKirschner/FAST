@@ -29,9 +29,9 @@ __all__ = [
     "distances_to",
     "great_circle_km",
     "grid",
-    "map_region",
-    "map_resolution",
     "measure_rtt",
+    "plot_region",
+    "plot_resolution",
     "region_span_km",
     "show_region",
 ]
@@ -158,76 +158,113 @@ def show_region(mask, points, shape, sites=("Singapore", "Johor Bahru", "Shenzhe
         print(f"({pair} land in the same cell at this scale — which is rather the point)")
 
 
-def _folium():
-    """folium, or None with an explanation. A missing map is not a reason to fail a lab."""
-    try:
-        import folium
-    except ImportError:
-        print("folium isn't installed, so the interactive map is skipped — the region printed above\n"
-              "is the same result. Install it with `%pip install folium` if you want the map.")
-        return None
-    return folium
+def _borders(name: str):
+    """Country outlines bundled with the package, as a list of (lons, lats) rings.
 
-
-def map_region(feasible, rtts, *, step_deg: float = 1.0, sites=("Singapore", "Johor Bahru", "Batam")):
-    """Draw a feasible region on an OpenStreetMap background, with landmarks and sites marked.
-
-    `feasible` is your own `feasible_mask`, called here on a coarser display grid than the one you
-    measured with — a browser draws a thousand squares slowly, and the map is for looking at rather
-    than for deciding anything. The cells are the region, not an approximation of it: each one is
-    evaluated exactly, just at lower resolution.
+    Natural Earth, public domain, shipped in the wheel rather than downloaded. The lab drew on
+    hosted map tiles once and was blocked for it — a room of twenty people pulling from
+    volunteer-run tile servers is what the OpenStreetMap tile usage policy exists to stop, and the
+    commercial tile providers want an API key. Vectors in the package need neither.
     """
-    folium = _folium()
-    if folium is None:
-        return None
+    import json
+    from importlib.resources import files
 
-    points, _ = grid(step_deg)
+    source = files("fast.labs.day4_verification").joinpath("borders", name).read_text()
+    rings = []
+    for feature in json.loads(source)["features"]:
+        for polygon in feature["geometry"]["coordinates"]:
+            ring = np.array(polygon[0])
+            rings.append((ring[:, 0], ring[:, 1]))
+    return rings
+
+
+def _basemap(ax, rings, extent):
+    ax.set_facecolor("#d9e6f2")  # sea, so land reads as land without a legend
+    for lons, lats in rings:
+        ax.fill(lons, lats, facecolor="#f7f5f1", edgecolor="#7d8a97", linewidth=0.6, zorder=0)
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    # Equirectangular: stretch longitude by cos(latitude) so the shapes aren't squashed.
+    ax.set_aspect(1 / np.cos(np.radians(np.mean(extent[2:]))))
+    ax.set_xlabel("longitude"), ax.set_ylabel("latitude")
+    ax.grid(color="#ffffff", alpha=0.6, linewidth=0.5, zorder=0)
+
+
+def _geodesic_circle(centre, radius_km, points: int = 361):
+    """The set of points exactly `radius_km` from `centre`, on the sphere rather than on the page."""
+    lat0, lon0 = np.radians(centre[0]), np.radians(centre[1])
+    angular = radius_km / 6371.0
+    bearings = np.linspace(0, 2 * np.pi, points)
+    lat = np.arcsin(np.sin(lat0) * np.cos(angular) + np.cos(lat0) * np.sin(angular) * np.cos(bearings))
+    lon = lon0 + np.arctan2(
+        np.sin(bearings) * np.sin(angular) * np.cos(lat0), np.cos(angular) - np.sin(lat0) * np.sin(lat)
+    )
+    return np.degrees(lon), np.degrees(lat)
+
+
+def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "Johor Bahru", "Batam")):
+    """Draw a feasible region over country borders, with landmarks and sites marked.
+
+    `feasible` is your own `feasible_mask`. Borders are the point of the background here rather
+    than decoration: the question the licence asks is which country the cluster is in.
+    """
+    import matplotlib.pyplot as plt
+
+    points, shape = grid(step_deg)
     mask = np.asarray(feasible(points, LANDMARKS, rtts, FIBRE_KM_PER_MS), dtype=bool)
-    half = step_deg / 2
-    cells = [
-        {"type": "Feature", "properties": {}, "geometry": {"type": "Polygon", "coordinates": [[
-            [round(lon - half, 3), round(lat - half, 3)], [round(lon + half, 3), round(lat - half, 3)],
-            [round(lon + half, 3), round(lat + half, 3)], [round(lon - half, 3), round(lat + half, 3)],
-            [round(lon - half, 3), round(lat - half, 3)]]]}}
-        for lat, lon in points[mask]
-    ]
+    lats, lons = points[:, 0].reshape(shape)[:, 0], points[:, 1].reshape(shape)[0]
 
-    chart = folium.Map(location=[8, 110], zoom_start=4, tiles="OpenStreetMap")
-    folium.GeoJson(
-        {"type": "FeatureCollection", "features": cells},
-        name="consistent with every landmark",
-        style_function=lambda _: {"fillColor": "#c026d3", "color": "#c026d3", "weight": 0, "fillOpacity": 0.2},
-    ).add_to(chart)
+    figure, ax = plt.subplots(figsize=(11, 8))
+    _basemap(ax, _borders("borders_region.geojson"), (lons[0], lons[-1], lats[0], lats[-1]))
+    ax.contourf(lons, lats, mask.reshape(shape), levels=[0.5, 1.5], colors=["#c026d3"], alpha=0.3, zorder=1)
+
     for name, (lat, lon) in LANDMARKS.items():
-        folium.CircleMarker([lat, lon], radius=4, color="#0f766e", fill=True, fill_opacity=1.0,
-                            tooltip=f"landmark · {name}").add_to(chart)
+        ax.plot(lon, lat, "o", color="#0f766e", markersize=6, zorder=3)
+        ax.annotate(name, (lon, lat), (4, 4), textcoords="offset points", fontsize=8, color="#0f766e")
+    clusters = []
     for name in sites:
         lat, lon = SITES[name]
-        folium.Marker([lat, lon], tooltip=f"site · {name}",
-                      icon=folium.Icon(color="darkred", icon="server", prefix="fa")).add_to(chart)
-    print(f"{int(mask.sum())} cells of {step_deg}° are consistent with all {len(LANDMARKS)} landmarks")
-    return chart
+        ax.plot(lon, lat, "*", color="#b91c1c", markersize=13, zorder=4)
+        near = next((c for c in clusters if abs(c["lat"] - lat) < 2 and abs(c["lon"] - lon) < 2), None)
+        if near:
+            near["names"].append(name)
+        else:
+            clusters.append({"lat": lat, "lon": lon, "names": [name]})
+    for cluster in clusters:
+        ax.annotate(" · ".join(cluster["names"]), (cluster["lon"], cluster["lat"]), (8, -12),
+                    textcoords="offset points", fontsize=8, color="#b91c1c", fontweight="bold")
+
+    ax.set_title(f"Consistent with all {len(LANDMARKS)} landmarks (teal) — candidate sites in red")
+    figure.tight_layout()
+    print(f"{int(mask.sum())} of {mask.size} grid cells survive every landmark's bound")
+    return figure
 
 
-def map_resolution(jitter_ms: float = 1.5, sites=("Singapore", "Johor Bahru", "Batam"), centre="Singapore"):
-    """Zoom to the strait and draw what a millisecond of jitter is worth, as a circle.
-
-    Small enough that the projection is honest at this scale, unlike a circle spanning a continent.
-    """
-    folium = _folium()
-    if folium is None:
-        return None
+def plot_resolution(jitter_ms: float = 1.5, sites=("Singapore", "Johor Bahru", "Batam"), centre="Singapore"):
+    """Draw what a millisecond of jitter is worth against the border it has to resolve."""
+    import matplotlib.pyplot as plt
 
     slop_km = jitter_ms / 2 * FIBRE_KM_PER_MS
-    chart = folium.Map(location=SITES[centre], zoom_start=8, tiles="OpenStreetMap")
-    folium.Circle(SITES[centre], radius=slop_km * 1000, color="#c026d3", fill=True, fill_opacity=0.12,
-                  tooltip=f"{slop_km:.0f} km — what {jitter_ms} ms of jitter is worth").add_to(chart)
+    lon, lat = _geodesic_circle(SITES[centre], slop_km)
+    pad = 0.35
+    extent = (lon.min() - pad, lon.max() + pad, lat.min() - pad, lat.max() + pad)
+
+    figure, ax = plt.subplots(figsize=(9, 8))
+    _basemap(ax, _borders("borders_strait.geojson"), extent)
+    ax.fill(lon, lat, facecolor="#c026d3", alpha=0.18, edgecolor="#c026d3", linewidth=1.5, zorder=2)
+
     for name in sites:
-        lat, lon = SITES[name]
-        folium.Marker([lat, lon], tooltip=f"{name} · {great_circle_km(SITES[centre], SITES[name]):.0f} km from {centre}",
-                      icon=folium.Icon(color="darkred", icon="server", prefix="fa")).add_to(chart)
-    print(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km of slop; the circle is that radius")
-    return chart
+        site_lat, site_lon = SITES[name]
+        away = great_circle_km(SITES[centre], SITES[name])
+        ax.plot(site_lon, site_lat, "*", color="#b91c1c", markersize=15, zorder=4)
+        ax.annotate(f"{name} ({away:.0f} km)", (site_lon, site_lat), (7, 5), textcoords="offset points",
+                    fontsize=9, color="#b91c1c", fontweight="bold")
+
+    ax.set_title(f"{slop_km:.0f} km — what {jitter_ms} ms of jitter is worth, over three countries")
+    figure.tight_layout()
+    print(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km; every site inside the shape is "
+          f"indistinguishable from {centre}")
+    return figure
 
 
 # --------------------------------------------------------------------------------------
