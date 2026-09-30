@@ -23,13 +23,16 @@ __all__ = [
     "SITES",
     "STRETCH",
     "STRETCH_RANGE",
+    "check_best_rtt",
     "check_delay_to_claim",
     "check_feasible_mask",
     "check_max_distance_km",
     "distances_to",
     "great_circle_km",
     "grid",
+    "measure_pings",
     "measure_rtt",
+    "plot_convergence",
     "plot_region",
     "plot_resolution",
     "region_span_km",
@@ -83,24 +86,44 @@ def great_circle_km(a, b) -> float:
     return float(2 * 6371.0 * np.arcsin(np.sqrt(haversine)))
 
 
-def measure_rtt(site, landmarks=None, *, jitter_ms: float = 1.5, added_delay_ms: float = 0.0,
-                seed: int = 0) -> dict[str, float]:
-    """Round-trip times in ms from each landmark to a cluster at `site`.
+def _propagation(site, landmarks, seed: int) -> dict[str, float]:
+    """The round trip each path would show with no jitter at all: distance, stretched.
 
-    `site` is a name in `SITES` or a `(latitude, longitude)` pair. Each landmark's straight-line
-    round trip is inflated by its own stretch factor drawn from `STRETCH_RANGE` — one path runs
-    almost straight, another detours through a distant exchange — then nudged by `jitter_ms` of
-    noise. `added_delay_ms` is whatever the operator chose to sit on before replying.
+    Stretch is a property of the route — which cables, which exchange — so it is fixed per landmark
+    and does not resample between pings. That distinction is the whole point of `measure_pings`:
+    jitter is noise you can measure away, stretch is a bias you cannot.
     """
-    landmarks = LANDMARKS if landmarks is None else landmarks
     location = SITES[site] if isinstance(site, str) else site
     rng = np.random.default_rng(seed)
     return {
-        name: 2 * great_circle_km(location, point) / FIBRE_KM_PER_MS * rng.uniform(*STRETCH_RANGE)
-        + abs(rng.normal(scale=jitter_ms))
-        + added_delay_ms
+        name: 2 * great_circle_km(location, point) / FIBRE_KM_PER_MS * float(rng.uniform(*STRETCH_RANGE))
         for name, point in landmarks.items()
     }
+
+
+def measure_pings(site, landmarks=None, *, pings: int = 1, jitter_ms: float = 1.5,
+                  added_delay_ms: float = 0.0, seed: int = 0) -> dict[str, np.ndarray]:
+    """Challenge every landmark `pings` times over: `{landmark: array of round-trip times}`.
+
+    Each sample is the path's own propagation time plus fresh jitter. Jitter is one-sided — a
+    packet can be delayed by a queue, never hurried by one — so every sample sits *above* the
+    truth and the smallest one is the closest to it.
+    """
+    landmarks = LANDMARKS if landmarks is None else landmarks
+    base = _propagation(site, landmarks, seed)
+    rng = np.random.default_rng(seed + 9999)
+    return {
+        name: base[name] + np.abs(rng.normal(scale=jitter_ms, size=pings)) + added_delay_ms
+        for name in landmarks
+    }
+
+
+def measure_rtt(site, landmarks=None, *, jitter_ms: float = 1.5, added_delay_ms: float = 0.0,
+                seed: int = 0) -> dict[str, float]:
+    """One round trip per landmark. `measure_pings` is the same thing repeated."""
+    samples = measure_pings(site, landmarks, pings=1, jitter_ms=jitter_ms,
+                            added_delay_ms=added_delay_ms, seed=seed)
+    return {name: float(values[0]) for name, values in samples.items()}
 
 
 def grid(step_deg: float = 0.5):
@@ -240,6 +263,40 @@ def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "J
     return figure
 
 
+def plot_convergence(feasible, samples, ping_counts=(1, 5, 50), *, step_deg: float = 0.5,
+                     sites=("Singapore", "Johor Bahru", "Batam")):
+    """Nested regions for increasing numbers of pings, over the same borders.
+
+    Each outline is the region you would have reported having asked that many times. They shrink
+    onto the floor set by path stretch and then stop, which is the result worth seeing.
+    """
+    import matplotlib.pyplot as plt
+
+    points, shape = grid(step_deg)
+    lats, lons = points[:, 0].reshape(shape)[:, 0], points[:, 1].reshape(shape)[0]
+    figure, ax = plt.subplots(figsize=(11, 8))
+    _basemap(ax, _borders("borders_region.geojson"), (lons[0], lons[-1], lats[0], lats[-1]))
+
+    shades = ["#f0abfc", "#d946ef", "#86198f"]
+    for colour, pings in zip(shades, ping_counts):
+        rtts = {name: float(np.min(values[:pings])) for name, values in samples.items()}
+        mask = np.asarray(feasible(points, LANDMARKS, rtts, FIBRE_KM_PER_MS), dtype=bool)
+        span = region_span_km(mask, points)
+        ax.contour(lons, lats, mask.reshape(shape), levels=[0.5], colors=[colour], linewidths=2, zorder=2)
+        ax.plot([], [], color=colour, linewidth=2, label=f"{pings} ping{'s' if pings > 1 else ''} — {span:,.0f} km")
+
+    for name in sites:
+        lat, lon = SITES[name]
+        ax.plot(lon, lat, "*", color="#b91c1c", markersize=13, zorder=4)
+    for name, (lat, lon) in LANDMARKS.items():
+        ax.plot(lon, lat, "o", color="#0f766e", markersize=5, zorder=3)
+
+    ax.legend(loc="lower left", fontsize=9, framealpha=0.9)
+    ax.set_title("Asking more often shrinks the region — until it doesn't")
+    figure.tight_layout()
+    return figure
+
+
 def plot_resolution(jitter_ms: float = 1.5, sites=("Singapore", "Johor Bahru", "Batam"), centre="Singapore"):
     """Draw what a millisecond of jitter is worth against the border it has to resolve."""
     import matplotlib.pyplot as plt
@@ -282,6 +339,41 @@ def check_max_distance_km(fn) -> None:
         np.isclose(doubled, 2000.0),
         f"twice the round trip is twice the distance: expected 2000 km, got {doubled} — "
         "the round trip covers the distance twice, so halve it before converting",
+    )
+
+
+@checker("best_rtt")
+def check_best_rtt(fn) -> None:
+    # The smallest sample is deliberately not the first one, so returning `values[0]` fails here
+    # rather than in the room.
+    samples = {
+        "near": np.array([9.5, 12.0, 8.0, 8.4]),
+        "far": np.array([44.0, 41.5, 40.0]),
+        "single": np.array([3.0]),
+    }
+    result = fn(samples)
+
+    require(
+        isinstance(result, dict) and set(result) == set(samples),
+        f"return one number per landmark, keyed the same way — expected {sorted(samples)}, "
+        f"got {sorted(result) if isinstance(result, dict) else type(result).__name__}",
+    )
+    require(
+        np.isclose(result["near"], 8.0),
+        f"the smallest sample for 'near' is 8.0, got {result['near']} — jitter only ever *adds* "
+        "time, so the fastest reply is the one closest to the truth, not the average",
+    )
+    require(
+        np.isclose(result["far"], 40.0) and np.isclose(result["single"], 3.0),
+        f"expected 40.0 and 3.0, got {result['far']} and {result['single']}",
+    )
+
+    # Taking a mean would be the instinct from any other measurement problem, and it is wrong here:
+    # it lands above the truth and stays there however many samples you take.
+    require(
+        result["near"] < float(np.mean(samples["near"])),
+        "averaging builds the queueing delay into your estimate permanently — a one-sided error "
+        "does not cancel out",
     )
 
 

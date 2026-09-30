@@ -157,6 +157,20 @@ for name in ("Singapore", "Johor Bahru", "Batam", "Kuala Lumpur", "Ho Chi Minh C
 # buys. Every bound gets looser when the operator stalls, so the region only ever grows, and the
 # true location never leaves it. A dishonest operator cannot move the verifier's region off the
 # truth. They can only inflate it until it covers wherever they would like to be.
+#
+# The guarantee survives a *faster* operator too, which is less obvious. Better hardware, a tighter
+# network stack, a reply prepared in advance — all of it shrinks the measured round trip, and all of
+# it leaves `distance <= rtt / 2 * c` true, because nothing an operator does makes a signal arrive
+# before it was sent. Being quick makes you look closer to where you already are; it cannot make you
+# look closer to somewhere you are not.
+#
+# Speed becomes an attack at the point where the reply has to *prove* it came from the chip, which
+# Part 3 argues it must. Then the verifier has to allow time for that work, and every millisecond
+# between the time they budget and the time the operator actually needs is 100 km of relay bought
+# for free. This is why distance-bounding protocols keep the timed exchange as close to nothing as
+# possible, typically a single bit answered from a precomputed table — not for elegance, but so
+# there is no slack to spend. A scheme that timed a real signed inference would hand a fast operator
+# a budget measured in whole milliseconds.
 
 # %% [markdown]
 # ### Exercise: what does a false claim cost?
@@ -260,18 +274,66 @@ for jitter in (1.5, 0.5, 0.1):
 lab.plot_resolution(jitter_ms=1.5)
 
 # %% [markdown]
-# The border is a fifth of a millisecond wide. Nothing on the public internet is measured that
-# precisely, and no amount of landmark density fixes it, because the noise is in the path rather
-# than in the geometry. A mechanism that resolves to a hundred kilometres cannot answer a question
+# The border is a fifth of a millisecond wide, and nothing on the public internet is measured that
+# precisely in one attempt. A mechanism resolving to a hundred kilometres cannot answer a question
 # posed about a seventeen-kilometre strait.
+
+# %% [markdown]
+# ### Exercise: ask again
 #
+# The obvious objection: that was *one* ping. Challenge a hundred times and average the noise away.
+#
+# Almost — but not by averaging. Jitter is one-sided in the same way the operator's stalling is: a
+# queue can delay a packet and nothing can hurry it, so every sample lands above the truth and none
+# below. The mean of a one-sided error is biased by construction and stays biased however many
+# samples you take. What you want is the fastest reply you ever saw.
+
+
+# %%
+@exercise
+def best_rtt(samples):
+    """Collapse repeated measurements into one tightest-but-still-sound time per landmark.
+
+    `samples` maps each landmark to an array of round-trip times from challenging it repeatedly.
+    Every sample is the true propagation time plus some delay that is never negative. Return
+    `{landmark: time}`, choosing per landmark the sample that gives the tightest bound while
+    remaining true.
+    """
+    return {name: float(np.min(values)) for name, values in samples.items()}
+
+
+lab.check_best_rtt(best_rtt)
+
+# %%
+samples = lab.measure_pings(truth, pings=50)
+for pings in (1, 3, 10, 50):
+    trimmed = {name: values[:pings] for name, values in samples.items()}
+    mask = feasible_mask(points, lab.LANDMARKS, best_rtt(trimmed), lab.FIBRE_KM_PER_MS)
+    print(f"{pings:>3} ping{'s' if pings > 1 else ' '}: region spans {lab.region_span_km(mask, points):>6,.0f} km")
+
+# %%
+lab.plot_convergence(feasible_mask, samples, ping_counts=(1, 5, 50))
+
+# %% [markdown]
+# It shrinks, and then it stops — and where it stops is nowhere near the physical limit. Repetition
+# removes the jitter and nothing else. What remains is path stretch, which was never noise: it is a
+# fixed property of which cables that route follows, identical on every ping, and no number of
+# measurements averages away a constant.
+#
+# That floor scales with distance, so asking repeatedly pays off exactly where a landmark is already
+# close. Against the Shenzhen cluster, with Hong Kong 27 km away, the same fifty pings collapse the
+# region to less than this grid can represent. Here, with the nearest landmark 922 km off, they buy
+# about nine percent. Geometry and stretch are different floors with the same implication: this
+# mechanism is only as good as your nearest landmark, and repetition cannot lend you one.
+
+# %% [markdown]
 # There is one more way to tighten the region, and it is worth seeing why it is a worse idea than it
 # looks. The bounds so far assume the signal might travel in a perfectly straight line at the speed
 # of light in fibre. No real path does, so assuming a slower effective speed tightens every bound at
 # once. The question is which assumption you are willing to make.
 
 # %%
-for label, assumed in (("physics only", 1.0), ("straightest seen", 1.3), ("typical", 1.5), ("optimistic", 1.7)):
+for label, assumed in (("physics only", 1.0), ("straightest seen", 1.3), ("typical", 1.4), ("optimistic", 1.5)):
     speed = lab.FIBRE_KM_PER_MS / assumed
     mask = feasible_mask(points, lab.LANDMARKS, rtts, speed)
     inside = feasible_mask(np.array([lab.SITES[truth]]), lab.LANDMARKS, rtts, speed)[0]
@@ -287,7 +349,7 @@ for label, assumed in (("physics only", 1.0), ("straightest seen", 1.3), ("typic
 # cannot exclude the truth, ever — that is what makes it a proof rather than an estimate.
 # Calibrating to the straightest path anyone has observed keeps that property and buys real
 # precision. Calibrating to a typical path buys more precision still, and the region it produces is
-# tighter, plausible, non-empty, confidently centred a couple of hundred kilometres from where the
+# tighter, plausible, non-empty, confidently centred some five hundred kilometres from where the
 # cluster actually is, and wrong. Nothing in the output says so.
 #
 # The last row is the benign failure: assume too much and no location satisfies every landmark, so
