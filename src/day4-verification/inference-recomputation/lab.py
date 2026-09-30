@@ -322,7 +322,7 @@ print(f"tolerance at a 5% false-accusation budget: {tolerance:.3f}")
 
 # %%
 sweep_prompts = prompts[:40]
-strengths = (0.002, 0.005, 0.01, 0.02, 0.05)
+strengths = (0.001, 0.002, 0.005, 0.01, 0.02, 0.05)
 sweep_deltas = {
     strength: lab.recompute_deltas(
         lab.log_run(model, tokenizer, sweep_prompts, tampered_rows=range(len(sweep_prompts)), strength=strength),
@@ -363,11 +363,16 @@ for strength, deltas in sweep_deltas.items():
     print(f"{strength:>16.3f}  {np.median(deltas):>13.3f}  {caught:>7.0%}")
 
 # %% [markdown]
-# The bold cheat is caught every time. The small ones are flagged at roughly the rate honest rows
-# are falsely accused. That is your 5% budget firing on schedule and occasionally landing on a
-# cheating row by coincidence, not detection. A small tamper's disagreement with your
-# recomputation is smaller than the disagreement your own hardware produces on honest work, so no
-# threshold separates the two; on this measurement they are not separate things.
+# The bold tampers are caught every time. Read up the table until the catch rate falls to roughly
+# the 5% you budgeted for false accusations: that row is your budget firing on schedule and
+# occasionally landing on a cheating row by coincidence, not detection. Below that line a tamper's
+# disagreement with your recomputation is smaller than the disagreement your own hardware produces
+# on honest work, so no threshold separates the two.
+#
+# Where the line falls is a property of your rig rather than of the cheat. Recomputing in fp16 on a
+# T4, the honest floor sits near 0.02 and only the 0.001 and 0.002 tampers disappear under it; on a
+# CPU falling back to bfloat16 the floor is ten times higher and far bolder tampers hide. The
+# operator does not have to guess which, because the floor is a property of commodity hardware.
 #
 # The tolerance you were forced into is a budget you handed the operator. Widen the tolerance to
 # stop accusing honest datacentres and you widen what a dishonest one can hide; narrow it and you
@@ -375,12 +380,13 @@ for strength, deltas in sweep_deltas.items():
 # move.
 
 # %%
+smallest, largest = min(strengths), max(strengths)
 for budget in (0.20, 0.05, 0.01):
     t = calibrate_tolerance(honest_deltas, budget)
-    caught_small, _ = audit_outcome(honest_deltas, sweep_deltas[0.005], t)
-    caught_large, accused = audit_outcome(honest_deltas, sweep_deltas[0.05], t)
+    caught_small, _ = audit_outcome(honest_deltas, sweep_deltas[smallest], t)
+    caught_large, accused = audit_outcome(honest_deltas, sweep_deltas[largest], t)
     print(f"budget {budget:>6.1%}: tolerance {t:.3f}, accuses {accused:.0%} of honest rows, "
-          f"catches {caught_small:.0%} of the small cheat and {caught_large:.0%} of the large one")
+          f"catches {caught_small:.0%} of the {smallest} tamper and {caught_large:.0%} of the {largest}")
 
 # %% [markdown]
 # **Take it further, on your own time:**
