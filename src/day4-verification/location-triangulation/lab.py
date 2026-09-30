@@ -43,13 +43,13 @@ setup(require_gpu=False)
 # ## The setup
 #
 # Nine landmark servers around the region, and a cluster whose operator says it is in Singapore.
-# It is in Johor Bahru, across the strait in Malaysia, 17 km away and in a different jurisdiction.
-# The jurisdiction is the only fact the licence cares about.
+# The cluster is in Johor Bahru, across the strait in Malaysia, 17 km away and in a different
+# jurisdiction. The jurisdiction is the only fact the licence cares about.
 #
 # The round-trip times below are synthesised rather than measured. Each one is a great-circle
 # distance inflated by its own path-stretch factor, plus a jitter term; fibre doesn't run in
-# straight lines, and it detours by a different amount on every route. The numbers sit in the
-# right range for real inter-city latency, but follow the geometry rather than the numbers.
+# straight lines, and every route detours by a different amount. The numbers sit in the right
+# range for real inter-city latency, but follow the geometry rather than the numbers.
 
 # %%
 truth = "Johor Bahru"
@@ -131,7 +131,7 @@ lab.plot_region(feasible_mask, rtts)
 
 # %% [markdown]
 # Nine numbers and some geometry cut the map down to a region. Whether that answers the licence's
-# question is a different matter. Check which of the marked sites fall inside it.
+# question is a different matter. Check which of the marked sites fall inside the region.
 
 # %%
 for name in ("Singapore", "Johor Bahru", "Batam", "Kuala Lumpur", "Ho Chi Minh City", "Shenzhen"):
@@ -154,22 +154,22 @@ for name in ("Singapore", "Johor Bahru", "Batam", "Kuala Lumpur", "Ho Chi Minh C
 #
 # That one-sidedness is the mechanism's real guarantee. Every bound gets looser when the operator
 # stalls, so the region only ever grows and the true location never leaves it. A dishonest
-# operator cannot move the verifier's region off the truth, only inflate it until it covers
-# wherever they would like to be.
+# operator cannot move the verifier's region off the truth, only inflate the region until it
+# covers wherever they would like to be.
 #
 # The guarantee survives a *faster* operator too. Better hardware, a tighter network stack, a
-# reply prepared in advance: all of it shrinks the measured round trip, and all of it leaves
+# reply prepared in advance: all of them shrink the measured round trip, and all of them leave
 # `distance <= rtt / 2 * c` true, because nothing an operator does makes a signal arrive before it
 # was sent. Being quick makes you look closer to where you already are; it cannot make you look
 # closer to somewhere you are not.
 #
 # Speed becomes an attack at the point where the reply has to *prove* it came from the chip, which
-# Part 3 argues it must. Then the verifier has to allow time for that work, and every millisecond
-# between the time they budget and the time the operator actually needs is 100 km of relay bought
-# for free. This is why distance-bounding protocols keep the timed exchange as close to nothing as
-# possible, typically a single bit answered from a precomputed table, so there is no slack to
-# spend. A scheme that timed a real signed inference would hand a fast operator a budget measured
-# in whole milliseconds.
+# Part 3 argues the reply must do. Then the verifier has to allow time for that work, and every
+# millisecond between the time they budget and the time the operator actually needs is 100 km of
+# relay bought for free. This is why distance-bounding protocols keep the timed exchange as close
+# to nothing as possible, typically a single bit answered from a precomputed table, so there is no
+# slack to spend. A scheme that timed a real signed inference would hand a fast operator a budget
+# measured in whole milliseconds.
 
 # %% [markdown]
 # ### Exercise: what does a false claim cost?
@@ -209,7 +209,7 @@ for name in ("Singapore", "Batam", "Kuala Lumpur", "Ho Chi Minh City", "Shenzhen
 # A cost in milliseconds is not much of a deterrent either. Stalling is invisible unless the
 # verifier knows what the honest latency should have been, which is the thing they are trying to
 # measure. A verifier can notice that a region has grown implausibly large and refuse to certify.
-# That is a real defence, but it downgrades the mechanism from "proves where the chip is" to
+# That is a real defence, but noticing downgrades the mechanism from "proves where the chip is" to
 # "notices when someone is obviously stalling".
 
 # %% [markdown]
@@ -222,18 +222,18 @@ for name in ("Singapore", "Batam", "Kuala Lumpur", "Ho Chi Minh City", "Shenzhen
 # Singapore.
 #
 # This is the same hole as Part 2 of the recomputation lab in different clothing. The evidence is
-# authored by the party being audited. Closing it needs the reply to be computed inside the chip
-# itself, signed with a key that cannot be extracted, and fast enough that the response time is
-# the network's rather than the operator's
-# ([Petrie et al., 2025](https://arxiv.org/abs/2506.15093);
-# [Aarne, Fist et al., 2024](https://www.cnas.org/publications/reports/secure-governable-chips)).
-# Delay-based location verification is a hardware technique that uses the network as its clock.
+# authored by the party being audited. Closing that hole needs the reply to be computed inside the
+# chip itself, signed with a key that cannot be extracted, and fast enough that the response time
+# is the network's rather than the operator's ([Petrie et al.,
+# 2025](https://arxiv.org/abs/2506.15093); [Aarne, Fist et al.,
+# 2024](https://www.cnas.org/publications/reports/secure-governable-chips)). Delay-based location
+# verification is a hardware technique that uses the network as its clock.
 
 # %% [markdown]
 # ## Part 4: what sets the resolution
 #
 # Assume all of that solved, with the chip answering for itself, honestly. How precisely can you
-# place it?
+# place the cluster?
 #
 # Two things put a floor under the answer. The first is geometry. A landmark 4,000 km away has a
 # loose bound even when the measurement is perfect, so what you can resolve depends on your
@@ -252,7 +252,7 @@ for site in ("Johor Bahru", "Shenzhen"):
 # %% [markdown]
 # A landmark next door is worth more than eight distant ones. Shenzhen still isn't pinned to
 # anything like 27 km, though. The second floor is measurement noise, and a millisecond of jitter
-# is 100 km of slop in the bound, whichever landmark it came from.
+# is 100 km of slop in the bound, whichever landmark the measurement came from.
 #
 # Put that next to the distance the licence actually turns on.
 
@@ -264,9 +264,9 @@ for jitter in (1.5, 0.5, 0.1):
     print(f"jitter of {jitter:>4} ms is worth {jitter / 2 * lab.FIBRE_KM_PER_MS:>3.0f} km of slop in every bound")
 
 # %% [markdown]
-# Drawn to scale over the strait, against the borders it is supposed to resolve. Everything inside
-# the shape is indistinguishable from Singapore as far as this instrument is concerned, and the
-# shape covers three countries.
+# Drawn to scale over the strait, against the borders the mechanism is supposed to resolve.
+# Everything inside the shape is indistinguishable from Singapore as far as this instrument is
+# concerned, and the shape covers three countries.
 
 # %%
 lab.plot_resolution(jitter_ms=1.5)
@@ -313,10 +313,10 @@ for pings in (1, 3, 10, 50):
 lab.plot_convergence(feasible_mask, samples, ping_counts=(1, 5, 50))
 
 # %% [markdown]
-# It shrinks, and then it stops, and where it stops is nowhere near the physical limit. Repetition
-# removes the jitter and nothing else. What remains is path stretch, which was never noise. It is
-# a fixed property of which cables that route follows, identical on every ping, and no number of
-# measurements averages away a constant.
+# The region shrinks, and then it stops, and where it stops is nowhere near the physical limit.
+# Repetition removes the jitter and nothing else. What remains is path stretch, which was never
+# noise. Stretch is a fixed property of which cables a route follows, identical on every ping, and
+# no number of measurements averages away a constant.
 #
 # That floor scales with distance, so asking repeatedly pays off exactly where a landmark is
 # already close. Against the Shenzhen cluster, with Hong Kong 27 km away, the same fifty pings
@@ -356,7 +356,7 @@ for label, assumed in (("physics only", 1.0), ("straightest seen", 1.3), ("typic
 # ([Gueye et al., 2006](https://doi.org/10.1109/TNET.2006.886332)).
 
 # %% [markdown]
-# ## Part 5: the case it does catch
+# ## Part 5: what the mechanism does catch
 #
 # Everything so far has been the mechanism failing, which gives a misleading picture. An export
 # licence asks whether the accelerators are still in the country they were licensed to, or ended
@@ -401,7 +401,7 @@ print(f"stalling 25.5 ms: region spans {lab.region_span_km(stalled, points):,.0f
 lab.plot_region(feasible_mask, stalled_rtts, sites=(claimed, diverted))
 
 # %% [markdown]
-# They got what they wanted and it is worthless to them. Singapore is consistent with the
+# They got what they wanted and the claim is worthless to them. Singapore is consistent with the
 # measurements, along with Mumbai, Tokyo, Perth and most of the Indian Ocean. The region went from
 # under a hundred kilometres to seven thousand, because inflating a bound far enough to reach a
 # distant claim inflates it in every direction at once. That is the one-sidedness of Part 2 seen
@@ -414,20 +414,20 @@ lab.plot_region(feasible_mask, stalled_rtts, sites=(claimed, diverted))
 # the second condition, no hardware or algorithm makes a reply arrive sooner, and a relay only
 # ever adds distance. The hole from Part 3 survives all of it: every one of these measurements
 # describes whatever answered the challenge rather than the chips, which is a question of binding
-# rather than precision, and the geometry cannot close it.
+# rather than precision, and the geometry cannot close that hole.
 
 # %% [markdown]
 # **Take it further, on your own time:**
 #
 # - Add a landmark in Kuala Lumpur and re-run Part 1. How much does the region shrink, and does it
-#   now separate Singapore from Johor? What does that tell you about where a verifier has to be
-#   allowed to put its servers, and who has to agree to it?
+# now separate Singapore from Johor? What does that tell you about where a verifier has to be
+# allowed to put its servers, and who has to agree to that placement?
 # - The operator adds delay to *some* landmarks and not others. Can they shape the region rather
-#   than just inflate it, pulling it towards a claimed location while keeping it small enough to
-#   look like an honest measurement?
+# than just inflate it, pulling it towards a claimed location while keeping it small enough to
+# look like an honest measurement?
 # - The jitter floor is the binding constraint at short range. What would a verifier have to
-#   control (dedicated links, a hardware timestamp inside the chip, repeated measurements) to push
-#   it from a millisecond to a microsecond, and which of those could an operator refuse?
+# control (dedicated links, a hardware timestamp inside the chip, repeated measurements) to push
+# it from a millisecond to a microsecond, and which of those could an operator refuse?
 
 # %% [markdown]
 # ## What to take away
@@ -436,12 +436,12 @@ lab.plot_region(feasible_mask, stalled_rtts, sites=(claimed, diverted))
 # so the region always contains the truth. Most verification mechanisms have no such one-sided
 # proof.
 #
-# It is also narrower than the question. The region contains the truth, and it contains a great
-# deal else, and the operator gets to choose which of the places inside it to name. For a cluster
-# in Johor Bahru, "we are in Singapore" costs nothing to say and cannot be contradicted.
-# Continental questions (is this in East Asia or Europe) are answered well. Jurisdictional ones,
-# which is what every export licence actually asks, are answered only where the border is wider
-# than the noise.
+# The guarantee is also narrower than the question. The region contains the truth, and it contains
+# a great deal else, and the operator gets to choose which of the places inside the region to
+# name. For a cluster in Johor Bahru, "we are in Singapore" costs nothing to say and cannot be
+# contradicted. Continental questions (is this in East Asia or Europe) are answered well.
+# Jurisdictional ones, which is what every export licence actually asks, are answered only where
+# the border is wider than the noise.
 #
 # Three things generalise past this lab. The measurement locates whatever answered the challenge,
 # so without a hardware root of trust it says nothing about the chips at all; the binding is the

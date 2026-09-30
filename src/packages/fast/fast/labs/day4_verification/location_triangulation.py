@@ -178,7 +178,7 @@ def show_region(mask, points, shape, sites=("Singapore", "Johor Bahru", "Shenzhe
         print("".join(row))
     print("  ".join(f"{marker}={name}" for marker, name in zip("ABCDEF", sites) if name in placed.values()))
     for pair in collisions:
-        print(f"({pair} land in the same cell at this scale — which is rather the point)")
+        print(f"({pair} land in the same cell at this scale)")
 
 
 def _borders(name: str):
@@ -313,7 +313,8 @@ def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "J
         ax.annotate(" · ".join(cluster["names"]), (cluster["lon"], cluster["lat"]), (8, -12),
                     textcoords="offset points", fontsize=8, color="#b91c1c", fontweight="bold")
 
-    ax.set_title(f"Consistent with all {len(LANDMARKS)} landmarks (teal) — candidate sites in red")
+    ax.set_title(f"Consistent with all {len(LANDMARKS)} landmarks. "
+                 f"Landmark servers in teal, candidate sites in red.")
     figure.tight_layout()
     print(f"{int(mask.sum())} of {mask.size} grid cells survive every landmark's bound")
     return figure
@@ -339,7 +340,8 @@ def plot_convergence(feasible, samples, ping_counts=(1, 5, 50), *, step_deg: flo
         mask = np.asarray(feasible(points, LANDMARKS, rtts, FIBRE_KM_PER_MS), dtype=bool)
         span = region_span_km(mask, points)
         ax.contour(lons, lats, mask.reshape(shape), levels=[0.5], colors=[colour], linewidths=2, zorder=2)
-        ax.plot([], [], color=colour, linewidth=2, label=f"{pings} ping{'s' if pings > 1 else ''} — {span:,.0f} km")
+        ax.plot([], [], color=colour, linewidth=2,
+                label=f"{pings} ping{'s' if pings > 1 else ''}: {span:,.0f} km across")
 
     for name in sites:
         lat, lon = SITES[name]
@@ -348,7 +350,7 @@ def plot_convergence(feasible, samples, ping_counts=(1, 5, 50), *, step_deg: flo
         ax.plot(lon, lat, "o", color="#0f766e", markersize=5, zorder=3)
 
     ax.legend(loc="lower left", fontsize=9, framealpha=0.9)
-    ax.set_title("Asking more often shrinks the region — until it doesn't")
+    ax.set_title("Repeated pings shrink the region, then stop")
     figure.tight_layout()
     return figure
 
@@ -373,10 +375,10 @@ def plot_resolution(jitter_ms: float = 1.5, sites=("Singapore", "Johor Bahru", "
         ax.annotate(f"{name} ({away:.0f} km)", (site_lon, site_lat), (7, 5), textcoords="offset points",
                     fontsize=9, color="#b91c1c", fontweight="bold")
 
-    ax.set_title(f"{slop_km:.0f} km — what {jitter_ms} ms of jitter is worth, over three countries")
+    ax.set_title(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km, across three countries")
     figure.tight_layout()
-    print(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km; every site inside the shape is "
-          f"indistinguishable from {centre}")
+    print(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km. Every site inside the shape is "
+          f"indistinguishable from {centre}.")
     return figure
 
 
