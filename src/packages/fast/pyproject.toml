@@ -16,6 +16,8 @@ dependencies = [
     "pyarrow>=14",
     "scikit-learn>=1.3",
     "ipywidgets>=7",
+    # day4 location-triangulation draws its region on an OpenStreetMap background.
+    "folium>=0.17",
 ]
 
 [project.optional-dependencies]
