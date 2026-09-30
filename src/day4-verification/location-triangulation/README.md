@@ -22,9 +22,9 @@ be contradicted.
 
 Three limits do the damage, and none of them is the geometry. The measurement locates whatever
 answered the challenge, so without a hardware root of trust it says nothing about the chips.
-Resolution is set by the nearest landmark and by the jitter floor: a millisecond of jitter is
-100 km of slop, and the Singapore–Johor border is 0.17 ms wide. And the tempting fix — assume a
-realistic path speed rather than a physical one — tightens the region, excludes the honest
+Resolution is set by the nearest landmark and by the jitter floor: a millisecond of jitter adds
+100 km to every bound, and the Singapore–Johor border is 0.17 ms wide. And the tempting fix,
+assuming a realistic path speed rather than a physical one, tightens the region, excludes the honest
 operator, and leaves a plausible-looking answer centred a couple of hundred kilometres from the
 truth with nothing in the output to say so.
 

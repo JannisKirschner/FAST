@@ -362,8 +362,8 @@ def plot_resolution(jitter_ms: float = 1.5, sites=("Singapore", "Johor Bahru", "
     """Draw what a millisecond of jitter is worth against the border it has to resolve."""
     import matplotlib.pyplot as plt
 
-    slop_km = jitter_ms / 2 * FIBRE_KM_PER_MS
-    lon, lat = _geodesic_circle(SITES[centre], slop_km)
+    jitter_km = jitter_ms / 2 * FIBRE_KM_PER_MS
+    lon, lat = _geodesic_circle(SITES[centre], jitter_km)
     pad = 0.35
     extent = (lon.min() - pad, lon.max() + pad, lat.min() - pad, lat.max() + pad)
 
@@ -378,10 +378,10 @@ def plot_resolution(jitter_ms: float = 1.5, sites=("Singapore", "Johor Bahru", "
         ax.annotate(f"{name} ({away:.0f} km)", (site_lon, site_lat), (7, 5), textcoords="offset points",
                     fontsize=9, color="#b91c1c", fontweight="bold")
 
-    ax.set_title(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km, across three countries")
+    ax.set_title(f"{jitter_ms} ms of jitter adds {jitter_km:.0f} km to every bound")
     figure.tight_layout()
-    print(f"{jitter_ms} ms of jitter is worth {slop_km:.0f} km. Every site inside the shape is "
-          f"indistinguishable from {centre}.")
+    print(f"{jitter_ms} ms of jitter adds {jitter_km:.0f} km to every bound. Every site inside "
+          f"the shape is indistinguishable from {centre}.")
     return figure
 
 

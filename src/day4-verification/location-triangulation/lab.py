@@ -251,8 +251,9 @@ for site in ("Johor Bahru", "Shenzhen"):
 
 # %% [markdown]
 # A landmark next door is worth more than eight distant ones. Shenzhen still isn't pinned to
-# anything like 27 km, though. The second floor is measurement noise, and a millisecond of jitter
-# is 100 km of slop in the bound, whichever landmark the measurement came from.
+# anything like 27 km, though. The second floor is measurement noise. Jitter inflates the measured
+# round trip, so the bound comes out larger than the true distance, and a millisecond of it adds
+# 100 km to every bound whichever landmark the measurement came from.
 #
 # Put that next to the distance the licence actually turns on.
 
@@ -261,7 +262,7 @@ separation = lab.great_circle_km(lab.SITES["Singapore"], lab.SITES["Johor Bahru"
 print(f"Singapore to Johor Bahru: {separation:.0f} km, a round trip of {2 * separation / lab.FIBRE_KM_PER_MS:.2f} ms")
 print()
 for jitter in (1.5, 0.5, 0.1):
-    print(f"jitter of {jitter} ms is worth {jitter / 2 * lab.FIBRE_KM_PER_MS:>3.0f} km of slop in every bound")
+    print(f"jitter of {jitter} ms adds {jitter / 2 * lab.FIBRE_KM_PER_MS:>3.0f} km to every bound")
 
 # %% [markdown]
 # Drawn to scale over the strait, against the borders the mechanism is supposed to resolve.
