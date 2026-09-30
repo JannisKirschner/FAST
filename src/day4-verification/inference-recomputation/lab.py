@@ -144,19 +144,46 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 substitute = lab.load_substitute_model()
 lab.describe_substitute(model, substitute)
 
-caught_transcript = lab.log_run(model, tokenizer, prompts[:20], tampered_rows=range(20), served_model=substitute)
-flagged = spot_check(
-    caught_transcript, lab.make_recomputer(caught_transcript, model, tokenizer), 20, np.random.default_rng(0)
-)
-print(f"\n{len(flagged)} of 20 rows flagged\n")
+# %% [markdown]
+# Substituting a checkpoint is one way to save money and not the most popular. Serving the promised
+# weights at lower precision is cheaper still and needs no second model on disk: round every weight
+# matrix to 8 or 4 bits per value and the same GPU serves more requests per second. Audit all three
+# the same way, with the claimed model as a control.
 
-row = caught_transcript[flagged[0]]
+# %%
+audited = prompts[:20]
+served_transcripts = {}
+print(f"{'what the operator served':>42}  {'rows flagged':>13}")
+for label, serving in (
+    ("the claimed model, honestly", {"served_model": model}),
+    ("the base checkpoint it was tuned from", {"served_model": substitute}),
+    ("the claimed weights rounded to int8", {"quantise_bits": 8}),
+    ("the claimed weights rounded to int4", {"quantise_bits": 4}),
+):
+    served_transcripts[label] = lab.log_run(
+        model, tokenizer, audited, tampered_rows=range(len(audited)), **serving
+    )
+    flagged = spot_check(
+        served_transcripts[label],
+        lab.make_recomputer(served_transcripts[label], model, tokenizer),
+        len(audited),
+        np.random.default_rng(0),
+    )
+    print(f"{label:>42}  {len(flagged):>4} of {len(audited)}")
+
+# %%
+caught_transcript = served_transcripts["the base checkpoint it was tuned from"]
+row = caught_transcript[0]
 print(f"prompt          {row.prompt}")
 print(f"logged digest   {row.digest}")
-print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer)(flagged[0])}")
+print(f"recomputed      {lab.make_recomputer(caught_transcript, model, tokenizer)(0)}")
 
 # %% [markdown]
-# Every row. A digest either matches or it doesn't, so there is nothing to argue about in a report.
+# Every row of every substitution, and none of the claimed model. Rounding to int8 leaves a model
+# that answers ordinary questions indistinguishably to a reader and is the cheat with the clearest
+# commercial motive: bill for the model you promised, pay to run a cheaper one. It fails the digest
+# on row one all the same, because the audit never asked what the model does. A digest either
+# matches or it doesn't, so there is nothing to argue about in a report.
 #
 # Note what the auditor never had to do. They did not have to know which tensors moved, or send a
 # prompt designed to expose the change, or understand the model at all. They compared numbers.
@@ -451,6 +478,11 @@ for budget in (0.20, 0.05, 0.01):
 # - The auditor never verified the *model*, only that some model reproduced the log. What does a
 #   digest over the weights get you, and what does it stop getting you once the operator can load
 #   one file and serve from another?
+# - Serving a *smaller* model is the substitution with the strongest commercial motive and the one
+#   this lab cannot demonstrate, because the digest indexes logits by token id and a model with a
+#   different vocabulary has nothing to compare. Inside a family that shares a tokenizer it works:
+#   claim Qwen2.5-1.5B-Instruct, serve Qwen2.5-0.5B-Instruct, and the same audit catches it. It is
+#   left out here only because it means every participant downloading a 3 GB checkpoint.
 
 # %% [markdown]
 # ## What to take away

@@ -45,6 +45,7 @@ __all__ = [
     "load_substitute_model",
     "log_run",
     "make_recomputer",
+    "quantised",
     "recompute_deltas",
     "tampered",
     "workload",
@@ -228,6 +229,33 @@ def describe_tamper(model, strength: float = TAMPER_STRENGTH) -> None:
 
 
 @contextlib.contextmanager
+def quantised(model, bits: int = 8, per_channel: bool = True):
+    """Serve the claimed weights at lower precision, restoring them on exit.
+
+    Per-channel symmetric rounding of every 2-D weight to `bits`, which is what a cheap serving
+    stack does to double throughput on the same hardware. A real substitution rather than a
+    synthetic one, and the one with the clearest commercial motive: the operator bills for the
+    model they promised and pays for a cheaper one to run.
+    """
+    import torch
+
+    targets = [weight for weight in model.parameters() if weight.dim() == 2]
+    saved = [weight.detach().clone() for weight in targets]
+    levels = 2 ** (bits - 1) - 1
+    try:
+        with torch.no_grad():
+            for weight in targets:
+                peak = weight.abs().amax(dim=1, keepdim=True) if per_channel else weight.abs().max()
+                scale = (peak / levels).clamp(min=1e-12)
+                weight.copy_(torch.round(weight / scale).clamp(-levels, levels) * scale)
+        yield model
+    finally:
+        with torch.no_grad():
+            for weight, original in zip(targets, saved):
+                weight.copy_(original)
+
+
+@contextlib.contextmanager
 def tampered(model, strength: float = TAMPER_STRENGTH, seed: int = 0):
     """Run the model with quietly altered weights, restoring them on exit.
 
@@ -306,7 +334,7 @@ def _record(prompt: str, logits: np.ndarray, tokenizer) -> Record:
     )
 
 
-def log_run(model, tokenizer, prompts, *, tampered_rows=(), served_model=None,
+def log_run(model, tokenizer, prompts, *, tampered_rows=(), served_model=None, quantise_bits=None,
             strength=TAMPER_STRENGTH, seed=0):
     """Run the workload and write down what happened: one `Record` per prompt.
 
@@ -317,16 +345,26 @@ def log_run(model, tokenizer, prompts, *, tampered_rows=(), served_model=None,
     claimed model's, because the request is the same whoever answers it.
     """
     tampered_rows = {int(i) for i in tampered_rows}
-    records = []
+    records = [None] * len(prompts)
+
     for index, prompt in enumerate(prompts):
         if index not in tampered_rows:
-            logits = _next_token_logits(model, tokenizer, prompt)
-        elif served_model is not None:
-            logits = _next_token_logits(served_model, tokenizer, prompt)
+            records[index] = _record(prompt, _next_token_logits(model, tokenizer, prompt), tokenizer)
+
+    if tampered_rows:
+        # One pass for the dishonest rows, so a substitution that rewrites the weights pays for
+        # itself once rather than once per row.
+        if served_model is not None:
+            serving = contextlib.nullcontext(served_model)
+        elif quantise_bits is not None:
+            serving = quantised(model, quantise_bits)
         else:
-            with tampered(model, strength, seed):
-                logits = _next_token_logits(model, tokenizer, prompt)
-        records.append(_record(prompt, logits, tokenizer))
+            serving = tampered(model, strength, seed)
+        with serving as active:
+            for index in sorted(tampered_rows):
+                logits = _next_token_logits(active, tokenizer, prompts[index])
+                records[index] = _record(prompts[index], logits, tokenizer)
+
     return records
 
 
