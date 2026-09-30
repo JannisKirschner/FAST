@@ -1,6 +1,6 @@
 # Location triangulation
 
-**Day 4 · 45 min · Lab · No GPU (numpy and geometry; seconds of compute)**
+**Day 4 · 60 min · Lab · No GPU (numpy and geometry; seconds of compute)**
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sg-ai-safety-hub/FAST/blob/main/src/day4-verification/location-triangulation/lab.ipynb)
 
@@ -30,11 +30,24 @@ truth with nothing in the output to say so.
 
 ## Structure
 
-Four parts, three functions you write: the distance bound from a round trip, the intersection of
-every landmark's bound over a grid, and the delay an operator needs to make a false claim
-consistent. Then two demonstrations — what sets the resolution, and what calibration costs.
+Five parts, four functions you write: the distance bound from a round trip, the intersection of
+every landmark's bound over a grid, the delay an operator needs to make a false claim consistent,
+and the right estimator for repeated measurements. Then what sets the resolution, what calibration
+costs, and the case the mechanism does catch.
 
-The region is drawn twice: as text, and as a map over country borders. Part 4 draws the jitter
+Repeated pings are worth the space they take. Jitter is one-sided like the operator's stalling is,
+so the estimator is the minimum rather than the mean, and the region converges after about thirty
+pings onto the floor set by path stretch and stops there. Repetition removes random error and
+leaves systematic error untouched, which lands better as a measured result than as a sentence.
+
+Part 5 is the counterweight to the rest. A cluster diverted to Shenzhen while claiming Singapore is
+caught outright — the region is under 100 km across and the claim sits 2,500 km outside it — and
+stalling enough to cover the claim inflates the region to 7,000 km, which answers nothing. The
+mechanism works on the question export control actually asks; it fails on the one the lab opens
+with.
+
+The region is drawn as text and as a map over country borders, the latter zooming automatically
+when the region is tight enough that it would otherwise be a sub-pixel smudge. Part 4 draws the jitter
 floor as a true geodesic circle over the Singapore Strait, against the borders it is supposed to
 resolve — it covers three countries.
 

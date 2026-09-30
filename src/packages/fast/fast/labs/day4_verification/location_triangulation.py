@@ -225,11 +225,17 @@ def _geodesic_circle(centre, radius_km, points: int = 361):
     return np.degrees(lon), np.degrees(lat)
 
 
-def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "Johor Bahru", "Batam")):
+def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "Johor Bahru", "Batam"),
+                zoom=None):
     """Draw a feasible region over country borders, with landmarks and sites marked.
 
     `feasible` is your own `feasible_mask`. Borders are the point of the background here rather
     than decoration: the question the licence asks is which country the cluster is in.
+
+    `zoom` frames the plot on the region and the named sites instead of the whole map. Left as
+    None it decides for itself, because a well-constrained region is a handful of cells and would
+    otherwise be a sub-pixel smudge somewhere over Asia — the plot would look empty exactly when
+    the measurement worked.
     """
     import matplotlib.pyplot as plt
 
@@ -237,11 +243,24 @@ def plot_region(feasible, rtts, *, step_deg: float = 0.5, sites=("Singapore", "J
     mask = np.asarray(feasible(points, LANDMARKS, rtts, FIBRE_KM_PER_MS), dtype=bool)
     lats, lons = points[:, 0].reshape(shape)[:, 0], points[:, 1].reshape(shape)[0]
 
+    extent = (lons[0], lons[-1], lats[0], lats[-1])
+    if zoom is None:
+        zoom = bool(mask.any()) and region_span_km(mask, points) < 1500
+    if zoom and mask.any():
+        interesting = np.vstack([points[mask], np.array([SITES[name] for name in sites])])
+        pad = max(2.0, 0.2 * max(np.ptp(interesting[:, 1]), np.ptp(interesting[:, 0])))
+        extent = (interesting[:, 1].min() - pad, interesting[:, 1].max() + pad,
+                  interesting[:, 0].min() - pad, interesting[:, 0].max() + pad)
+
     figure, ax = plt.subplots(figsize=(11, 8))
-    _basemap(ax, _borders("borders_region.geojson"), (lons[0], lons[-1], lats[0], lats[-1]))
+    _basemap(ax, _borders("borders_region.geojson"), extent)
     ax.contourf(lons, lats, mask.reshape(shape), levels=[0.5, 1.5], colors=["#c026d3"], alpha=0.3, zorder=1)
+    # A tight region is only a few cells; outline it so it reads as a shape rather than a speck.
+    ax.contour(lons, lats, mask.reshape(shape), levels=[0.5], colors=["#86198f"], linewidths=1.5, zorder=2)
 
     for name, (lat, lon) in LANDMARKS.items():
+        if not (extent[0] <= lon <= extent[1] and extent[2] <= lat <= extent[3]):
+            continue
         ax.plot(lon, lat, "o", color="#0f766e", markersize=6, zorder=3)
         ax.annotate(name, (lon, lat), (4, 4), textcoords="offset points", fontsize=8, color="#0f766e")
     clusters = []

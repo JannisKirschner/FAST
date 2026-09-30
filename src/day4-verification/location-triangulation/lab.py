@@ -357,7 +357,69 @@ for label, assumed in (("physics only", 1.0), ("straightest seen", 1.3), ("typic
 # before it, which looks like the best result on the page. Real schemes do calibrate, from
 # measurements between landmarks of known position, and they inherit exactly this
 # ([Gueye et al., 2006](https://doi.org/10.1109/TNET.2006.886332)).
+
+# %% [markdown]
+# ## Part 5: the case it does catch
 #
+# Everything so far has been the mechanism failing, which is a misleading diet. The question an
+# export licence asks is not "Singapore or Johor" — that distinction is a rounding error to a regime
+# worried about diversion. It is whether the accelerators are still in the country they were
+# licensed to, or ended up somewhere the licence forbids. That is a continental question, and
+# continental questions are what this instrument answers well.
+#
+# Same nine landmarks, same code. The operator says Singapore. The cluster is in Shenzhen.
+
+# %%
+diverted, claimed = "Shenzhen", "Singapore"
+diverted_rtts = best_rtt(lab.measure_pings(diverted, pings=50))
+fine_points, _ = lab.grid(0.25)
+region = feasible_mask(fine_points, lab.LANDMARKS, diverted_rtts, lab.FIBRE_KM_PER_MS)
+print(f"region spans {lab.region_span_km(region, fine_points):,.0f} km after 50 pings\n")
+
+for name in (diverted, claimed, "Johor Bahru", "Kuala Lumpur", "Ho Chi Minh City"):
+    inside = feasible_mask(np.array([lab.SITES[name]]), lab.LANDMARKS, diverted_rtts, lab.FIBRE_KM_PER_MS)[0]
+    cost = delay_to_claim(lab.SITES[name], lab.LANDMARKS, diverted_rtts, lab.FIBRE_KM_PER_MS)
+    print(f"{name:>18}: {'consistent' if inside else 'ruled out':>10}   "
+          f"{'—' if cost == 0 else f'{cost:.1f} ms of stalling to claim it'}")
+
+# %%
+lab.plot_region(feasible_mask, diverted_rtts, step_deg=0.25, sites=(claimed, diverted))
+
+# %% [markdown]
+# Caught, and not marginally. The region is under a hundred kilometres across and Singapore sits two
+# and a half thousand kilometres outside it. There is no tolerance to argue about and no calibration
+# to dispute: the claim is inconsistent with the speed of light.
+#
+# So the operator falls back on the only move they have, and stalls. It takes 25.5 ms of added delay
+# on every reply to bring Singapore inside the region.
+
+# %%
+stalled_rtts = best_rtt(lab.measure_pings(diverted, pings=50, added_delay_ms=25.5))
+stalled = feasible_mask(points, lab.LANDMARKS, stalled_rtts, lab.FIBRE_KM_PER_MS)
+inside = feasible_mask(np.array([lab.SITES[claimed]]), lab.LANDMARKS, stalled_rtts, lab.FIBRE_KM_PER_MS)[0]
+print(f"stalling 25.5 ms: region spans {lab.region_span_km(stalled, points):,.0f} km, "
+      f"{claimed} is {'consistent' if inside else 'ruled out'}")
+
+# %%
+lab.plot_region(feasible_mask, stalled_rtts, sites=(claimed, diverted))
+
+# %% [markdown]
+# They got what they wanted and it is worthless to them. Singapore is consistent with the
+# measurements — along with Mumbai, Tokyo, Perth and most of the Indian Ocean. The region went from
+# under a hundred kilometres to seven thousand, because inflating a bound far enough to reach a
+# distant claim inflates it in every direction at once. That is the one-sidedness of Part 2 seen
+# from the other end: the operator can always buy the claim, and the only currency they have is the
+# usefulness of the measurement.
+#
+# Which is what makes the mechanism workable in the regime it was designed for. The verifier does
+# not ask "where is this cluster" and believe the answer. They ask for a region that is both
+# consistent with the operator's claim and tight enough to name a country — and stalling cannot
+# satisfy the second condition, no hardware or algorithm makes a reply arrive sooner, and a relay
+# only ever adds distance. What survives all of that is the hole from Part 3: every one of these
+# measurements describes whatever answered the challenge, not the chips. That is not a question of
+# precision, and not one the geometry can close.
+
+# %% [markdown]
 # **Take it further, on your own time:**
 #
 # - Add a landmark in Kuala Lumpur and re-run Part 1. How much does the region shrink, and does it
