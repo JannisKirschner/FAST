@@ -122,8 +122,13 @@ def load_datacentre_model():
     """The model the datacentre claims to run, at full precision. Qwen 0.5B; 135M under CI."""
     name = "smol-135m" if ci_mode() else "qwen-0.5b"
     model, tokenizer = load_model(name, dtype="float32")
-    print(f"datacentre: {name} at float32 on {model.device}")
+    print(f"claimed:   {_model_id(model)} at float32 on {model.device}")
     return model, tokenizer
+
+
+def _model_id(model) -> str:
+    """The repo the weights came from, so printed lines name a checkpoint rather than an alias."""
+    return getattr(model.config, "_name_or_path", "unknown")
 
 
 def load_substitute_model():
@@ -137,7 +142,7 @@ def load_substitute_model():
     """
     name = "HuggingFaceTB/SmolLM2-135M" if ci_mode() else "Qwen/Qwen2.5-0.5B"
     model, _ = load_model(name, dtype="float32")
-    print(f"served:     {name} at float32 on {model.device}")
+    print(f"served:    {_model_id(model)} at float32 on {model.device}")
     return model
 
 
@@ -158,9 +163,11 @@ def describe_substitute(claimed, served) -> None:
             largest = max(largest, float(change.max()))
             weighted += float(change.sum())
 
-    print("how the served checkpoint differs from the claimed one")
+    print("what the operator actually served")
+    print(f"  agreed to run  {_model_id(claimed)}")
+    print(f"  actually ran   {_model_id(served)}")
     print(f"  {differing:,} of {total:,} parameters differ ({differing / total:.1%})")
-    print(f"  mean |difference| {weighted / total:.2e}, largest {largest:.2e}")
+    print(f"  mean |difference| {weighted / total:.2e}, largest single weight {largest:.2e}")
 
 
 def load_audit_model():
@@ -175,7 +182,7 @@ def load_audit_model():
     name = "smol-135m" if ci_mode() else "qwen-0.5b"
     dtype = "float16" if torch.cuda.is_available() else "bfloat16"
     model, tokenizer = load_model(name, dtype=dtype)
-    print(f"audit rig:  {name} at {dtype} on {model.device}")
+    print(f"audit rig: {_model_id(model)} at {dtype} on {model.device}")
     return model, tokenizer
 
 

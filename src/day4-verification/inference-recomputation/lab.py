@@ -129,13 +129,16 @@ print(f"checked {recompute.calls} of {len(transcript)} rows, {len(mismatches)} m
 # ### What a caught operator looks like
 #
 # A clean result only means something if a dirty one looks different, so watch the audit work
-# before breaking it. The operator below served twenty rows from a modified copy of the model and
-# logged them honestly.
+# before breaking it.
 #
-# The substitution is a real one you can name. The agreement is about Qwen2.5-0.5B-Instruct, the
-# checkpoint that went through instruction tuning and safety training. The operator serves
-# Qwen2.5-0.5B, the base model it was tuned from: same architecture, same tokenizer, same
-# vocabulary, already sitting on the same disk, and none of the training the agreement is about.
+# Here is the substitution, named rather than described. The agreement is about
+# Qwen2.5-0.5B-Instruct, the checkpoint that went through instruction tuning and safety training.
+# The operator serves Qwen2.5-0.5B, the base model it was tuned from: same architecture, same
+# tokenizer, same vocabulary, already sitting on the same disk, and none of the training the
+# agreement is about. They run twenty rows on it and log the results honestly.
+#
+# `describe_substitute` prints both checkpoints and how far apart they are, so nothing about the
+# cheat is hidden in a helper.
 
 # %%
 substitute = lab.load_substitute_model()
