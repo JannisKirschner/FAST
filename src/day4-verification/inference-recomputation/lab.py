@@ -486,28 +486,28 @@ for budget in (0.20, 0.05, 0.01):
 # %% [markdown]
 # ## What to take away
 #
-# Exact matching works and spot-checking is cheap. Twenty forward passes cleared a two-hundred-row
-# day, and a one-in-ten-thousand cheat falls to recomputing a third of a percent of the traffic.
-# Against an operator who swaps a checkpoint and logs it honestly on hardware identical to yours,
-# recomputation is a solved problem for the price of a few thousand forward passes.
+# Exact matching works. Twenty forward passes cleared a two-hundred-row day, and the sampling
+# arithmetic puts a one-in-ten-thousand cheat at a third of a percent of the traffic recomputed.
+# That covers one case: an operator who swaps a checkpoint, logs it honestly, and runs the same
+# hardware you do.
 #
-# Three conditions were hiding in that sentence.
+# The lab removed each of those assumptions in turn.
 #
-# The operator writes the log, so recomputation compares a document with a model and never touches
-# what users were served. Closing that needs the record produced by something the operator does not
-# control, signed inside the chip or inside an attested enclave.
+# The operator writes the log. Recomputation compares that file against a model and never reaches
+# the serving path, so a truthful log over dishonest serving passes every check. A record the
+# operator cannot author means a signature from inside the chip, or an attested enclave.
 #
-# The operator also picks which rows to cheat on, and audit traffic announces itself by arriving in
-# a burst, from one account, on prompts nobody else sends. Sampling their log lets them anticipate
-# you. Sending your own prompts does not, and costs nothing extra to build.
+# The operator chooses which rows to cheat on. Audit traffic is recognisable: a burst, one account,
+# prompts nobody else sends. Sampling their log is sampling what they chose to show you. Choosing
+# your own prompts avoids that and needs no new infrastructure.
 #
-# And your arithmetic is not theirs. The moment the auditor runs different hardware, equality
-# becomes a tolerance, and that tolerance hides any change smaller than the disagreement your own
-# rig produces on honest work. Reproducibility is the condition people assume is free, which is why
-# batch-invariant kernels end up in a governance argument.
+# The auditor's arithmetic differs from the operator's. Equality becomes a tolerance, and the
+# tolerance covers any change smaller than what your own hardware does to honest work. On a T4 in
+# fp16 that was a weight change of 0.002 standard deviations. Reproducible kernels are a
+# prerequisite for this mechanism.
 #
-# The treaty-verification session asks the same three questions of other mechanisms: who authors
-# the evidence, who picks the sample, and whose machine is the reference.
+# Day 4's treaty-verification session covers mechanisms with the same three weak points: who
+# authors the evidence, who selects the sample, and whose hardware is the reference.
 # %%
 # @lab-only
 # Stuck on spot_check? rng.choice(len(records), size=k, replace=False) draws the rows. Call
