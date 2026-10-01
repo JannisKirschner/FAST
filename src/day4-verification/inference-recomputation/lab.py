@@ -486,35 +486,28 @@ for budget in (0.20, 0.05, 0.01):
 # %% [markdown]
 # ## What to take away
 #
-# The audit in Part 1 was real. Exact matching works, spot-checking is cheap, and the sampling
-# arithmetic is favourable: a one-in-ten-thousand cheat falls to a third of a percent of the
-# traffic. If the problem were "catch an operator who swapped the model and kept honest records on
-# a machine identical to mine", this would be a solved problem for the price of a few thousand
-# forward passes.
+# Exact matching works and spot-checking is cheap. Twenty forward passes cleared a two-hundred-row
+# day, and a one-in-ten-thousand cheat falls to recomputing a third of a percent of the traffic.
+# Against an operator who swaps a checkpoint and logs it honestly on hardware identical to yours,
+# recomputation is a solved problem for the price of a few thousand forward passes.
 #
-# Each of the three cheats took away one piece of that sentence. **Honest records:** the operator
-# writes the log, so recomputation checks a document against a model and never touches the serving
-# path. **Kept:** conditioned behaviour lives at a rate you don't get to estimate, on inputs you
-# don't get to guess, and a sample drawn from the operator's own log is a sample they can
-# anticipate. **Identical to mine:** the moment the auditor's arithmetic differs from the
-# operator's, equality becomes a tolerance, and the tolerance is large enough to hide a real
-# modification inside.
+# Three conditions were hiding in that sentence.
 #
-# What is left is a short list of things that have to be true before a recomputation audit means
-# anything, and every one of them is a hardware or protocol requirement rather than a better
-# statistic. The record is produced by something the operator doesn't control, the auditor chooses
-# the inputs rather than sampling the operator's log, and the arithmetic is reproducible enough
-# that honest disagreement is smaller than the smallest cheat worth catching. Reproducibility is
-# the one people assume is free, and the reason batch-invariant kernels turn up in a governance
-# conversation at all, and the reason the serious schemes push the check down into the chip
-# instead of up into the auditor's statistics
-# ([Cankaya,
-# 2026](https://www.lesswrong.com/posts/fgvmKqRGvBteKeDoc/a-system-overview-for-near-term-low-trust-ai-compute);
-# [Petrie et al., 2025](https://arxiv.org/abs/2506.15093)).
+# The operator writes the log, so recomputation compares a document with a model and never touches
+# what users were served. Closing that needs the record produced by something the operator does not
+# control, signed inside the chip or inside an attested enclave.
 #
-# For the treaty-verification session, the three questions that decided every cheat in this lab
-# were who authors the evidence, who picks the sample, and whose machine is the reference.
-
+# The operator also picks which rows to cheat on, and audit traffic announces itself by arriving in
+# a burst, from one account, on prompts nobody else sends. Sampling their log lets them anticipate
+# you. Sending your own prompts does not, and costs nothing extra to build.
+#
+# And your arithmetic is not theirs. The moment the auditor runs different hardware, equality
+# becomes a tolerance, and that tolerance hides any change smaller than the disagreement your own
+# rig produces on honest work. Reproducibility is the condition people assume is free, which is why
+# batch-invariant kernels end up in a governance argument.
+#
+# The treaty-verification session asks the same three questions of other mechanisms: who authors
+# the evidence, who picks the sample, and whose machine is the reference.
 # %%
 # @lab-only
 # Stuck on spot_check? rng.choice(len(records), size=k, replace=False) draws the rows. Call
